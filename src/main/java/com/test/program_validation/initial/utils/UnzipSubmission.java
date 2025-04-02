@@ -9,7 +9,7 @@ import java.util.zip.ZipInputStream;
 
 public class UnzipSubmission {
     public static void saveZipToDisk(byte[] zipBytes) throws IOException {
-        String OUTPUT_DIR = "/Users/monoid/Documents/GitHub/initial/src/main/java/com/test/program_validation/initial/utils/unzip_files";
+        String OUTPUT_DIR = "/Users/monoid/Documents/GitHub/dynamic-analysis-service/src/main/java/com/test/program_validation/initial/utils/unzip_files";
         File outputDir = new File(OUTPUT_DIR);
         if (!outputDir.exists()) outputDir.mkdirs();
         try (ZipInputStream zis = new ZipInputStream(new ByteArrayInputStream(zipBytes))) {

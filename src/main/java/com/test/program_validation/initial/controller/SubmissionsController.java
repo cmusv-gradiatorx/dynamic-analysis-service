@@ -17,7 +17,7 @@ public class SubmissionsController {
             byte[] zipBytes = Base64.getDecoder().decode(payload.message.data);
             UnzipSubmission.saveZipToDisk(zipBytes);
             System.out.println(":white_check_mark: Received and saved ZIP from message: " + payload.message.messageId);
-            boolean isBuilt = DockerController.buildDockerImage("dynamic_test", "/Users/monoid/Documents/GitHub/initial/src/main/java/com/test/program_validation/initial/utils");
+            boolean isBuilt = DockerController.buildDockerImage("dynamic_test", "/Users/monoid/Documents/GitHub/dynamic-analysis-service/src/main/java/com/test/program_validation/initial/utils");
             if (isBuilt) {
                 DockerController.runContainer("dynamic_test");
             }
