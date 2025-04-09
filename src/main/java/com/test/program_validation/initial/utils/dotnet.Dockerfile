@@ -31,7 +31,10 @@ ENV PATH="/google-cloud-sdk/bin:${PATH}"
 
 # Application setup
 WORKDIR /DynamicAnalysis
-COPY f24-03-ArbitrageGainer .
+COPY unzip_files ./src
+
+COPY dotnet_clean_test.sh .
+RUN chmod +x ./dotnet_clean_test.sh
 
 COPY zip-and-publish.sh .
 RUN chmod +x ./zip-and-publish.sh
@@ -46,5 +49,5 @@ RUN gcloud auth activate-service-account --key-file=./gradiator-x-454207-6e09134
     gcloud config set project gradiator-x-454207
 
 CMD ["/bin/sh", "-c", \
-  "dotnet clean f24-03-ArbitrageGainer.sln && dotnet test f24-03-ArbitrageGainer.sln && \
+  "./dotnet_clean_test.sh && \
   ./zip-and-publish.sh"]
