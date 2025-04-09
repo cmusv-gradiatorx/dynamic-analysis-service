@@ -11,10 +11,9 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Python 3.8
+# Install Python3
 RUN apt-get update && \
-    apt-get install -y python3.8 python3-pip && \
-    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1 && \
+    apt-get install -y python3 python3-pip && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -32,8 +31,7 @@ ENV PATH="/google-cloud-sdk/bin:${PATH}"
 
 # Application setup
 WORKDIR /DynamicAnalysis
-COPY *.csproj .
-COPY unzip_files ./src
+COPY f24-03-ArbitrageGainer .
 
 COPY zip-and-publish.sh .
 RUN chmod +x ./zip-and-publish.sh
@@ -41,15 +39,12 @@ RUN chmod +x ./zip-and-publish.sh
 COPY gradiator-x-454207-6e09134229e4.json .
 RUN chmod +r ./gradiator-x-454207-6e09134229e4.json
 
-ENV GOOGLE_APPLICATION_CREDENTIALS=./auth.json
-
-# Build and runtime config
-RUN dotnet restore
+ENV GOOGLE_APPLICATION_CREDENTIALS=./gradiator-x-454207-6e09134229e4.json
 
 # Authenticate with service account
 RUN gcloud auth activate-service-account --key-file=./gradiator-x-454207-6e09134229e4.json && \
     gcloud config set project gradiator-x-454207
 
 CMD ["/bin/sh", "-c", \
-  "dotnet clean && dotnet test && \
+  "dotnet clean f24-03-ArbitrageGainer.sln && dotnet test f24-03-ArbitrageGainer.sln && \
   ./zip-and-publish.sh"]
