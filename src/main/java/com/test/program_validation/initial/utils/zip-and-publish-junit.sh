@@ -2,8 +2,8 @@
 # Exit on any error
 set -e
 # Input arguments
-FOLDER_TO_ZIP=src/build/reports
-ZIP_NAME=test-results.zip
+FOLDER_TO_ZIP=build/reports
+ZIP_NAME=junit-test-results.zip
 TOPIC_NAME=dynamic-analysis-result
 # Zip the folder
 echo "Zipping folder $FOLDER_TO_ZIP to $ZIP_NAME..."

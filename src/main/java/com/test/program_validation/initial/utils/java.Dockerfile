@@ -1,4 +1,4 @@
-# Build-time argument for JDK. Default is 21.
+# Build-time argument for JDK. Default is 21
 ARG JDK_VERSION=21
 
 # Base image of JDK_VERSION
@@ -7,7 +7,7 @@ FROM amazoncorretto:${JDK_VERSION}
 # Build-time argument for Gradle version. Default is 8.10.
 ARG GRADLE_VERSION=8.10
 
-# Install xmlstarlet and gradle
+# Install Gradle and other tools
 RUN yum update -y && \
     amazon-linux-extras install epel -y && \
     yum install -y wget unzip shadow-utils xmlstarlet && \
@@ -27,7 +27,7 @@ RUN amazon-linux-extras enable python3.8 && \
     alternatives --install /usr/bin/pip3 pip3 /usr/bin/pip3.8 1 && \
     yum clean all
 
-# Set environment variables
+# Set gcloud environment variables
 ENV GCLOUD_VERSION=456.0.0
 ENV GCLOUD_FILE=google-cloud-cli-${GCLOUD_VERSION}-linux-x86_64.tar.gz
 
@@ -47,7 +47,7 @@ ENV PATH=$PATH:$GRADLE_HOME/bin
 WORKDIR /DynamicAnalysis
 COPY build.gradle .
 COPY settings.gradle .
-COPY unzip_files ./src
+COPY unzip_files .
 
 COPY zip-and-publish-junit.sh .
 RUN chmod +x ./zip-and-publish-junit.sh
