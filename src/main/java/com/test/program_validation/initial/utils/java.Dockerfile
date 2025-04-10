@@ -49,8 +49,8 @@ COPY build.gradle .
 COPY settings.gradle .
 COPY unzip_files ./src
 
-COPY zip-and-publish.sh .
-RUN chmod +x ./zip-and-publish.sh
+COPY zip-and-publish-junit.sh .
+RUN chmod +x ./zip-and-publish-junit.sh
 
 COPY gradiator-x-454207-6e09134229e4.json .
 RUN chmod +r ./gradiator-x-454207-6e09134229e4.json
@@ -66,4 +66,4 @@ RUN gcloud auth activate-service-account --key-file=./gradiator-x-454207-6e09134
 
 CMD ["/bin/sh", "-c", \
   "gradle clean test && \
-  ./zip-and-publish.sh"]
+  ./zip-and-publish-junit.sh"]
