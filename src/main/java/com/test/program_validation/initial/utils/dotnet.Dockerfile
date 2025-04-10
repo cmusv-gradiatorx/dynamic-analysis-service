@@ -1,10 +1,10 @@
-# Build-time argument for .NET SDK. Default is 8.0.
+# Build-time argument for .NET SDK. Default is 8.0
 ARG SDK_VERSION=8.0
 
 # Base image of .NET SDK version
 FROM mcr.microsoft.com/dotnet/sdk:${SDK_VERSION}
 
-# Install xmlstarlet and other utilities
+# Install tools
 RUN apt-get update && \
     apt-get install -y wget unzip xmlstarlet && \
     apt-get install -y zip curl tar gzip iputils-ping && \
@@ -17,7 +17,7 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Set environment variables
+# Set gcloud environment variables
 ENV GCLOUD_VERSION=456.0.0
 ENV GCLOUD_FILE=google-cloud-cli-${GCLOUD_VERSION}-linux-x86_64.tar.gz
 
@@ -31,8 +31,7 @@ ENV PATH="/google-cloud-sdk/bin:${PATH}"
 
 # Application setup
 WORKDIR /DynamicAnalysis
-COPY f24-03-ArbitrageGainer .
-#COPY unzip_files .
+COPY unzip_files .
 
 COPY dotnet_clean_test.sh .
 RUN chmod +x ./dotnet_clean_test.sh
