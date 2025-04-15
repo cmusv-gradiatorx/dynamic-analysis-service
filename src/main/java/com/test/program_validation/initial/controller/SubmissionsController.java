@@ -15,8 +15,12 @@ public class SubmissionsController {
     public void receivePush(@RequestBody PubSubPayload payload) {
         try {
             byte[] zipBytes = Base64.getDecoder().decode(payload.message.data);
+            String courseId = payload.message.courseId;
+            // TODO: validate courseId with Optional check
             UnzipSubmission.saveZipToDisk(zipBytes);
             System.out.println(":white_check_mark: Received and saved ZIP from message: " + payload.message.messageId);
+            // TODO: if courseId == "18656SV", then build dotnet.Docker
+            // TODO: if courseId == "18664SV", then build java.Docker
             boolean isBuilt = DockerController.buildDockerImage("dynamic_test", "/Users/monoid/Documents/GitHub/dynamic-analysis-service/src/main/java/com/test/program_validation/initial/utils");
             if (isBuilt) {
                 DockerController.runContainer("dynamic_test");
