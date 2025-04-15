@@ -52,6 +52,9 @@ COPY unzip_files ./src
 COPY zip-and-publish.sh .
 RUN chmod +x ./zip-and-publish.sh
 
+COPY zip_and_publish.py .
+RUN chmod +x ./zip_and_publish.py
+
 COPY gradiator-x-454207-6e09134229e4.json .
 RUN chmod +r ./gradiator-x-454207-6e09134229e4.json
 
@@ -64,6 +67,9 @@ RUN gradle build
 RUN gcloud auth activate-service-account --key-file=./gradiator-x-454207-6e09134229e4.json && \
     gcloud config set project gradiator-x-454207
 
+RUN pip3 install google-cloud-pubsub
+RUN pip3 install urllib3==1.26.16
+
 CMD ["/bin/sh", "-c", \
   "gradle clean test && \
-  ./zip-and-publish.sh"]
+  python3 ./zip_and_publish.py"]
