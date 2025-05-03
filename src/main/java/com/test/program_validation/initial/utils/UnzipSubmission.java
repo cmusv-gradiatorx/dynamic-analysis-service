@@ -4,12 +4,16 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 public class UnzipSubmission {
     public static void saveZipToDisk(byte[] zipBytes) throws IOException {
-        String OUTPUT_DIR = "/Users/monoid/Documents/GitHub/dynamic-analysis-service/src/main/java/com/test/program_validation/initial/utils/unzip_files";
+        Path projectRoot = Paths.get("").toAbsolutePath(); // Gets the working directory at runtime
+        Path utilsPath = projectRoot.resolve("src/main/java/com/test/program_validation/initial/utils/unzip_files");
+        String OUTPUT_DIR = utilsPath.toString();
         File outputDir = new File(OUTPUT_DIR);
         if (!outputDir.exists()) outputDir.mkdirs();
         try (ZipInputStream zis = new ZipInputStream(new ByteArrayInputStream(zipBytes))) {
