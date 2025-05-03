@@ -4,7 +4,7 @@ import base64
 from google.cloud import pubsub_v1
 # ---------- CONFIG ----------
 FOLDER_TO_ZIP = "src/build/reports"
-ZIP_NAME = "test-results.zip"
+ZIP_NAME = "test-results-junit.zip"
 PROJECT_ID = "gradiator-x-454207"
 TOPIC_ID = "dynamic-analysis-result"
 # ----------------------------
