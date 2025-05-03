@@ -49,12 +49,10 @@ COPY build.gradle .
 COPY settings.gradle .
 COPY unzip_files ./src
 
-COPY zip-and-publish.sh .
-RUN chmod +x ./zip-and-publish.sh
+COPY zip_and_publish_junit.py .
+RUN chmod +x ./zip_and_publish_junit.py
 
-COPY zip_and_publish.py .
-RUN chmod +x ./zip_and_publish.py
-
+# TODO: REMOVE CREDENTIALS
 COPY gradiator-x-454207-6e09134229e4.json .
 RUN chmod +r ./gradiator-x-454207-6e09134229e4.json
 
