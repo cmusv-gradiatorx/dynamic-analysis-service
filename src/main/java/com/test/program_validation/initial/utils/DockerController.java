@@ -2,6 +2,9 @@ package com.test.program_validation.initial.utils;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 public class DockerController {
 
@@ -34,12 +37,26 @@ public class DockerController {
         }
     }
 
-    public static void runContainer(String imageName) {
+    public static void runContainer(String imageName, Map<String, String> dockerRunCommands) {
         try {
-            ProcessBuilder builder = new ProcessBuilder(
-                    "docker", "run", "--rm", imageName
-            );
-            builder.redirectErrorStream(true);
+            // Create a ProcessBuilder with basic docker run command
+            List<String> commands = new ArrayList<>();
+            commands.add("docker");
+            commands.add("run");
+            commands.add("--rm");
+
+            // Add environment variables using -e flag
+            for (Map.Entry<String, String> entry : dockerRunCommands.entrySet()) {
+                commands.add("-e");
+                commands.add(entry.getKey() + "=" + entry.getValue());
+
+            }
+
+            // Add the image name last
+            commands.add(imageName);
+
+            ProcessBuilder builder = new ProcessBuilder(commands);
+
             Process process = builder.start();
             try (BufferedReader reader = new BufferedReader(
                     new InputStreamReader(process.getInputStream()))) {

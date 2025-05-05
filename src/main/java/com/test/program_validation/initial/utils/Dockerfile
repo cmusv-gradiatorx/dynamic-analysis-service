@@ -49,23 +49,20 @@ COPY build.gradle .
 COPY settings.gradle .
 COPY unzip_files ./src
 
-COPY zip-and-publish.sh .
-RUN chmod +x ./zip-and-publish.sh
-
 COPY zip_and_publish.py .
 RUN chmod +x ./zip_and_publish.py
 
-COPY gradiator-x-454207-6e09134229e4.json .
-RUN chmod +r ./gradiator-x-454207-6e09134229e4.json
+COPY credentials.json .
+RUN chmod +r ./credentials.json
 
-ENV GOOGLE_APPLICATION_CREDENTIALS=./gradiator-x-454207-6e09134229e4.json
+ENV GOOGLE_APPLICATION_CREDENTIALS=./credentials.json
 
 # Build and runtime config
 RUN gradle build
 
 # Authenticate with service account
-RUN gcloud auth activate-service-account --key-file=./gradiator-x-454207-6e09134229e4.json && \
-    gcloud config set project gradiator-x-454207
+RUN gcloud auth activate-service-account --key-file=./credentials.json && \
+    gcloud config set project gradiatorx
 
 RUN pip3 install google-cloud-pubsub
 RUN pip3 install urllib3==1.26.16
