@@ -11,6 +11,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/submissions")
@@ -33,9 +35,20 @@ public class SubmissionsController {
             byte[] zipBytes = Base64.getDecoder().decode(payload.message.data);
             UnzipSubmission.saveZipToDisk(zipBytes);
             System.out.println(":white_check_mark: Received and saved ZIP from message: " + payload.message.messageId);
-            boolean isBuilt = DockerController.buildDockerImage("dynamic_test", "/Users/monoid/Documents/GitHub/dynamic-analysis-service/src/main/java/com/test/program_validation/initial/utils");
+
+            String submissionId = payload.message.attributes.get("submissionId");
+
+            boolean isBuilt = DockerController.buildDockerImage(
+                    "dynamic_test",
+                    "/Users/monoid/Documents/GitHub/dynamic-analysis-service/src/main/java/com/test/program_validation/initial/utils");
+
             if (isBuilt) {
-                DockerController.runContainer("dynamic_test");
+                // Store runtime arguments in dockerRunCommands
+                Map<String, String> dockerRunCommands = new HashMap<>();
+                dockerRunCommands.put("SUBMISSION_ID", submissionId);
+
+                DockerController.runContainer("dynamic_test", dockerRunCommands);
+
             }
             else {
                 throw new RuntimeException("Unable to build the docker container");
