@@ -1,13 +1,13 @@
-# Build-time argument for JDK. Default is 21.
+# Build-time argument for JDK. Default is 21
 ARG JDK_VERSION=21
 
 # Base image of JDK_VERSION
 FROM amazoncorretto:${JDK_VERSION}
 
-# Build-time argument for Gradle version. Default is 8.10.
+# Build-time argument for Gradle version. Default is 8.10
 ARG GRADLE_VERSION=8.10
 
-# Install xmlstarlet and gradle
+# Install Gradle and other tools
 RUN yum update -y && \
     amazon-linux-extras install epel -y && \
     yum install -y wget unzip shadow-utils xmlstarlet && \
@@ -27,7 +27,7 @@ RUN amazon-linux-extras enable python3.8 && \
     alternatives --install /usr/bin/pip3 pip3 /usr/bin/pip3.8 1 && \
     yum clean all
 
-# Set environment variables
+# Set Gcloud environment variables
 ENV GCLOUD_VERSION=456.0.0
 ENV GCLOUD_FILE=google-cloud-cli-${GCLOUD_VERSION}-linux-x86_64.tar.gz
 
@@ -36,10 +36,10 @@ RUN curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/${GCLOUD_
 RUN tar -xzvf ${GCLOUD_FILE} && \
     google-cloud-sdk/install.sh
 
-# Add to PATH
+# Add Gcloud to PATH
 ENV PATH="/google-cloud-sdk/bin:${PATH}"
 
-# Environment setup
+# Gradle nvironment setup
 ENV GRADLE_HOME=/opt/gradle/gradle-${GRADLE_VERSION}
 ENV PATH=$PATH:$GRADLE_HOME/bin
 
@@ -67,6 +67,7 @@ RUN gcloud auth activate-service-account --key-file=./credentials.json && \
 RUN pip3 install google-cloud-pubsub
 RUN pip3 install urllib3==1.26.16
 
+# Run gradle clean test, zip, and publish results to PubSub topic
 CMD ["/bin/sh", "-c", \
   "gradle clean test && \
   python3 ./zip_and_publish.py"]

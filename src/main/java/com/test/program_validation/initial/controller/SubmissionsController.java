@@ -38,6 +38,7 @@ public class SubmissionsController {
 
             String submissionId = payload.message.attributes.get("submissionId");
 
+            // Build image and store result
             boolean isBuilt = DockerController.buildDockerImage(
                     "dynamic_test",
                     "/Users/monoid/Documents/GitHub/dynamic-analysis-service/src/main/java/com/test/program_validation/initial/utils");

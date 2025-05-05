@@ -10,6 +10,7 @@ public class DockerController {
 
     public static boolean buildDockerImage(String imageName, String dockerfilePath) {
         try {
+            // Build the Docker image in the specified file path
             ProcessBuilder builder = new ProcessBuilder(
                     "docker", "build", "-t", imageName, dockerfilePath
             );
