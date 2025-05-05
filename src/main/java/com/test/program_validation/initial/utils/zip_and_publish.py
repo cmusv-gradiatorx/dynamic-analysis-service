@@ -5,7 +5,7 @@ from google.cloud import pubsub_v1
 # ---------- CONFIG ----------
 FOLDER_TO_ZIP = "src/build/reports"
 ZIP_NAME = "test-results.zip"
-PROJECT_ID = "gradiator-x-454207"
+PROJECT_ID = "gradiatorx"
 TOPIC_ID = "dynamic-analysis-result"
 # ----------------------------
 def zip_folder(folder_path, zip_path):
@@ -24,7 +24,10 @@ def publish_base64_zip(zip_path, project_id, topic_id):
     # Base64 encode the zip
     base64_zip = base64.b64encode(zip_data).decode("utf-8")  # convert to UTF-8 str
     # Publish the message
-    future = publisher.publish(topic_path, base64_zip.encode("utf-8"))  # send back as bytes
+    attributes = {
+        'submissionId': os.environ.get('SUBMISSION_ID')
+    }
+    future = publisher.publish(topic_path, base64_zip.encode("utf-8"), **attributes)  # send back as bytes
     print(":outbox_tray: Published message ID:", future.result())
 if __name__ == "__main__":
     zip_folder(FOLDER_TO_ZIP, ZIP_NAME)
