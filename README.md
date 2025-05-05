@@ -41,15 +41,28 @@ dynamic-analysis-service
 ## Requirements
 - Java 21 (or later)
 - Gradle 8.10 (or later)
+- Docker Desktop
 
 
 ## Installation
 
-1. Clone the repository:
+1. Download Docker Desktop
+   ```
+   https://www.docker.com/products/docker-desktop/
+   ```
+
+2. Clone the repository:
     ```
     git clone https://github.com/cmusv-gradiatorx/dynamic-analysis-service.git
     cd dynamic-analysis-service
     ```
+
+## Running the project
+
+1. Open Docker Desktop
+   ```
+   This starts the Docker engine and provides management tools for your images and containers
+   ```
 
 2. Run the project:
    ```
@@ -94,6 +107,69 @@ Comprehensive API specification is available via Swagger UI, which allows you to
 - **utils/zip_and_publish.py**: Python script for processing submissions
 
 **InitialApplication.java**: Spring Boot main application class
+
+## Docker
+
+### Building and running
+
+#### Building
+The docker-build bash script contains the docker build command with build time arguments. Excluding the build-arg 
+argument will build the image with version defaults found in the Dockerfile.
+
+JDK_VERSION controls the major version of Java development kit being used.
+GRADLE_VERSION controls the version of Gradle being used.
+
+   ```
+   docker build --build-arg JDK_VERSION=17 --build-arg GRADLE_VERSION=7.3 -t image_name:latest .
+   ```
+
+#### Running
+
+Run the container with the following command
+   ```
+   docker run -it container_name:latest
+   ```
+
+
+#### Compatibility Matrix
+See the compatibility matrix below to view the minimum Gradle version needed for the specified JDK.
+(visit https://docs.gradle.org/current/userguide/compatibility.html for full compatibility matrix)
+   ```
+   +----------+------------------------+--------------------------+
+   | Java     | Support for            | Support for running      |
+   | version  | toolchains             | Gradle                   |
+   +----------+------------------------+--------------------------+
+   | 11       | N/A                    | 5.0                      |
+   | 12       | N/A                    | 5.4                      |
+   | 13       | N/A                    | 6.0                      |
+   | 14       | N/A                    | 6.3                      |
+   | 15       | 6.7                    | 6.7                      |
+   | 16       | 7.0                    | 7.0                      |
+   | 17       | 7.3                    | 7.3                      |
+   | 18       | 7.5                    | 7.5                      |
+   | 19       | 7.6                    | 7.6                      |
+   | 20       | 8.1                    | 8.3                      |
+   | 21       | 8.4                    | 8.5                      |
+   | 22       | 8.7                    | 8.8                      |
+   | 23       | 8.10                   | 8.10                     |
+   | 24       | N/A                    | N/A                      |
+   +----------+------------------------+--------------------------+
+   ```
+### Useful commands
+Search for an image by name
+   ```
+   docker search --filter is-official=true <image_name>
+   ```
+
+Pull and run image
+   ```
+   docker run -p 8080:80 --rm <image_name>
+   ```
+
+Build and push an image
+   ```
+   docker build -t <YOUR-USERNAME>/<image_name> .
+   ```
 
 ## Contributing
 
