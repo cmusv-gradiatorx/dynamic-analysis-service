@@ -14,27 +14,43 @@ Provides an API for assignment submission. After receiving the submission it att
 ```
 dynamic-analysis-service
 │
-├── src/  # Source code directory
-│   └── main/                   # Main application source code
-│       └── java/               # Java source files
-│           └── com.test.program_validation.initial/
-│               │
-│               ├── controller/                           # REST API Controllers
-│               │   └── SubmissionsController            # Handles HTTP requests for submission endpoints
-│               │
-│               ├── models/                               # Data models and DTOs
-│               │   ├── PubSubMessage                    # Message structure for Pub/Sub communications
-│               │   └── PubSubPayload                    # Payload structure for submission data
-│               │
-│               ├── utils/                                # Utility classes and helper methods
-│               │   ├── build.gradle                     # Gradle configuration script
-│               │   ├── DockerController                 # Docker container management logic
-│               │   ├── Dockerfile                       # Docker container configuration
-│               │   ├── settings.gradle                  # Gradle project settings
-│               │   ├── UnzipSubmission                  # Handles decompression of submission files
-│               │   └── zip_and_publish.py               # Python script for processing submissions
-│               │
-│               └── InitialApplication                    # Spring Boot main application class
+├── docker/                             # Docker configuration and scripts
+│   ├── build.gradle                    # Gradle configuration for container builds
+│   ├── Dockerfile                      # Docker container configuration
+│   ├── settings.gradle                 # Gradle project settings for containers
+│   ├── zip_and_publish.py              # Python script for processing submissions
+│   └── unzip_files/                    # Directory for extracted submission files
+│
+├── src/                                # Source code directory
+│   ├── main/                           # Main application source code
+│   │   ├── java/                       # Java source files
+│   │   │   └── edu/cmu/gradiatorx/dynamic/
+│   │   │       │
+│   │   │       ├── config/             # Configuration classes
+│   │   │       │   └── ServiceConfig.java    # Centralized service configuration
+│   │   │       │
+│   │   │       ├── controller/         # REST API Controllers
+│   │   │       │   ├── SubmissionsController.java  # Handles submission endpoints
+│   │   │       │   └── DockerController.java       # Docker container management
+│   │   │       │
+│   │   │       ├── models/             # Data models and DTOs
+│   │   │       │   ├── PubSubMessage.java          # Message structure for Pub/Sub
+│   │   │       │   └── PubSubPayload.java          # Payload structure for submissions
+│   │   │       │
+│   │   │       ├── utils/              # Utility classes and helper methods
+│   │   │       │   └── UnzipSubmission.java        # Handles file decompression
+│   │   │       │
+│   │   │       └── InitialApplication.java         # Spring Boot main application class
+│   │   │
+│   │   └── resources/                  # Application resources
+│   │       └── application.properties  # Application configuration
+│   │
+│   └── test/                           # Test source code
+│       └── java/                       # Test classes
+│
+├── build.gradle                        # Main Gradle build configuration
+├── settings.gradle                     # Main Gradle project settings
+└── README.md                           # Project documentation
 
 ```
 
@@ -56,6 +72,22 @@ dynamic-analysis-service
     git clone https://github.com/cmusv-gradiatorx/dynamic-analysis-service.git
     cd dynamic-analysis-service
     ```
+
+## Configuration
+
+The service can be configured via `src/main/resources/application.properties`:
+
+```properties
+# Dynamic Analysis Service Configuration
+dynamic.analysis.docker.path=docker
+dynamic.analysis.unzip.path=docker/unzip_files
+dynamic.analysis.image.name=dynamic_test
+```
+
+These properties control:
+- `docker.path`: Location of Docker configuration files
+- `unzip.path`: Directory for extracting submission files
+- `image.name`: Default Docker image name for dynamic analysis
 
 ## Running the project
 
@@ -88,9 +120,14 @@ Comprehensive API specification is available via Swagger UI, which allows you to
 
 ## Project Structure Details
 
+### Configuration
+
+- **ServiceConfig.java**: Centralized configuration management for paths and service settings
+
 ### Controllers
 
 - **SubmissionsController.java**: Handles HTTP requests for submission endpoints
+- **DockerController.java**: Docker container management logic with improved logging
 
 ### Models
 
@@ -99,12 +136,14 @@ Comprehensive API specification is available via Swagger UI, which allows you to
 
 ### Utils
 
-- **utils/build.gradle**: Gradle configuration script
-- **utils/DockerController.java**: Docker container management logic
-- **utils/java.Dockerfile**: Dockerfile configuration for Java programs
-- **utils/settings.gradle**: Gradle project settings
-- **utils/UnzipSubmission.java**: Handles decompression of submission files
-- **utils/zip_and_publish.py**: Python script for processing submissions
+- **UnzipSubmission.java**: Handles decompression of submission files with configurable paths
+
+### Docker Configuration
+
+- **docker/build.gradle**: Gradle configuration script for container builds
+- **docker/Dockerfile**: Docker container configuration for Java programs
+- **docker/settings.gradle**: Gradle project settings for containers
+- **docker/zip_and_publish.py**: Python script for processing submissions
 
 **InitialApplication.java**: Spring Boot main application class
 
@@ -120,7 +159,7 @@ JDK_VERSION controls the major version of Java development kit being used.
 GRADLE_VERSION controls the version of Gradle being used.
 
    ```
-   docker build --build-arg JDK_VERSION=17 --build-arg GRADLE_VERSION=7.3 -t image_name:latest .
+   docker build --build-arg JDK_VERSION=17 --build-arg GRADLE_VERSION=7.3 -t image_name:latest ./docker
    ```
 
 #### Running
@@ -168,7 +207,7 @@ Pull and run image
 
 Build and push an image
    ```
-   docker build -t <YOUR-USERNAME>/<image_name> .
+   docker build -t <YOUR-USERNAME>/<image_name> ./docker
    ```
 
 ## Contributing

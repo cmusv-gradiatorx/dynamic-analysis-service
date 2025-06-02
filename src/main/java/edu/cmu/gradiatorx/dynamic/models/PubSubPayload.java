@@ -1,4 +1,4 @@
-package com.test.program_validation.initial.models;
+package edu.cmu.gradiatorx.dynamic.models;
 
 public class PubSubPayload {
     public PubSubMessage message;

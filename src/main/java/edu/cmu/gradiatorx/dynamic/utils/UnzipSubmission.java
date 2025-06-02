@@ -1,4 +1,6 @@
-package com.test.program_validation.initial.utils;
+package edu.cmu.gradiatorx.dynamic.utils;
+
+import edu.cmu.gradiatorx.dynamic.config.ServiceConfig;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -8,11 +10,11 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 public class UnzipSubmission {
-    public static void saveZipToDisk(byte[] zipBytes) throws IOException {
+    public static void saveZipToDisk(byte[] zipBytes, ServiceConfig serviceConfig) throws IOException {
 
-        // Specify target location for unzipped files
-        String OUTPUT_DIR = "/Users/monoid/Documents/GitHub/dynamic-analysis-service/src/main/java/com/test/program_validation/initial/utils/unzip_files";
-        File outputDir = new File(OUTPUT_DIR);
+        // Use configured unzip path
+        String outputDirPath = serviceConfig.getUnzipPath();
+        File outputDir = new File(outputDirPath);
 
         if (!outputDir.exists()) outputDir.mkdirs();
 

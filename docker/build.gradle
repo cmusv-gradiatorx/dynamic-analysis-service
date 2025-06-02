@@ -1,0 +1,37 @@
+plugins {
+    id 'java'
+    id 'jacoco'
+}
+
+group 'edu.cmu.gradiatorx.dynamic.evaluation'
+version '1.0.0'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.0'
+}
+
+jacoco {
+    toolVersion = "0.8.11"  // Java 21-compatible version
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.required = true
+        html.required = true
+    }
+
+    classDirectories.setFrom(files("${layout.buildDirectory.get().asFile}/classes/java/main"))
+    sourceDirectories.setFrom(files("src/main/java"))
+    executionData.setFrom(files("${layout.buildDirectory.get().asFile}/jacoco/test.exec"))
+}
+
+test {
+    useJUnitPlatform()
+    finalizedBy jacocoTestReport
+}
