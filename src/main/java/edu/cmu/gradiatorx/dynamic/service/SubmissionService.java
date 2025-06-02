@@ -17,18 +17,67 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Service class for handling submission processing logic
- * Uses Java-based Docker and PubSub services with per-submission isolation
+ * Service class for handling submission processing logic with concurrent support.
+ * 
+ * <p>This service orchestrates the complete submission processing workflow using
+ * Java-based Docker and PubSub services. It provides per-submission isolation
+ * to ensure multiple submissions can be processed concurrently without conflicts.</p>
+ * 
+ * <p>The processing workflow includes:</p>
+ * <ol>
+ *   <li>Receiving and validating PubSub payloads</li>
+ *   <li>Saving ZIP files with unique submission-based naming</li>
+ *   <li>Building Docker images for the analysis environment</li>
+ *   <li>Running isolated containers with mounted submission files</li>
+ *   <li>Collecting and processing container execution results</li>
+ *   <li>Publishing results to Google Cloud PubSub topics</li>
+ *   <li>Cleaning up temporary files and resources</li>
+ * </ol>
+ * 
+ * <p>The service is designed for high concurrency and fault tolerance, with
+ * comprehensive error handling and resource cleanup to prevent memory leaks
+ * and resource exhaustion.</p>
+ * 
+ * @author Dynamic Analysis Service Team
+ * @version 1.0
+ * @since 1.0
+ * @see DockerService
+ * @see PubSubService
+ * @see ServiceConfig
  */
 @Service
 public class SubmissionService {
 
     private static final Logger logger = LoggerFactory.getLogger(SubmissionService.class);
 
+    /**
+     * Configuration service providing paths and settings for the application.
+     * Contains Docker paths, submission directories, and image names.
+     */
     private final ServiceConfig serviceConfig;
+    
+    /**
+     * Docker service for container management operations.
+     * Handles image building, container execution, and volume mounting.
+     */
     private final DockerService dockerService;
+    
+    /**
+     * PubSub service for publishing results to Google Cloud topics.
+     * Manages ZIP creation and message publishing with proper resource cleanup.
+     */
     private final PubSubService pubSubService;
 
+    /**
+     * Constructs a new SubmissionService with required dependencies.
+     * 
+     * @param serviceConfig Configuration service providing application settings;
+     *                      must not be null
+     * @param dockerService Docker service for container operations;
+     *                      must not be null
+     * @param pubSubService PubSub service for result publishing;
+     *                      must not be null
+     */
     @Autowired
     public SubmissionService(ServiceConfig serviceConfig, DockerService dockerService, PubSubService pubSubService) {
         this.serviceConfig = serviceConfig;
@@ -37,10 +86,40 @@ public class SubmissionService {
     }
 
     /**
-     * Process a submission payload by saving zip file and running Docker analysis
+     * Process a submission payload through the complete analysis workflow.
+     * 
+     * <p>This method handles the entire submission processing pipeline from
+     * receiving the PubSub payload to publishing the final results. Each
+     * submission is processed in isolation using unique file naming and
+     * dedicated container instances.</p>
+     * 
+     * <p>The method implements comprehensive error handling and cleanup to
+     * ensure system stability even when individual submissions fail. All
+     * temporary resources are cleaned up regardless of success or failure.</p>
+     * 
+     * <p>Processing steps:</p>
+     * <ol>
+     *   <li>Validate submission ID from payload attributes</li>
+     *   <li>Decode and save ZIP file with unique naming</li>
+     *   <li>Build Docker image (cached after first build)</li>
+     *   <li>Run analysis container with mounted submission ZIP</li>
+     *   <li>Collect container output and test results</li>
+     *   <li>Publish results to configured PubSub topic</li>
+     *   <li>Clean up temporary files and resources</li>
+     * </ol>
      *
-     * @param payload The PubSub payload containing the submission data
-     * @throws RuntimeException if processing fails
+     * @param payload The PubSub payload containing the submission data.
+     *                Must include:
+     *                <ul>
+     *                  <li>message.data: base64-encoded ZIP file with code</li>
+     *                  <li>message.attributes.submissionId: unique identifier</li>
+     *                </ul>
+     * @throws RuntimeException if submission ID is missing, ZIP data is invalid,
+     *                          Docker operations fail, or publishing encounters errors
+     * @throws IllegalArgumentException if the payload structure is invalid
+     * @see PubSubPayload
+     * @see #runAnalysisContainerWithZip(String, String)
+     * @see #publishContainerResults(String, DockerService.ContainerExecutionResult)
      */
     public void processSubmission(PubSubPayload payload) {
         String submissionId = payload.message.attributes.get("submissionId");
@@ -95,11 +174,24 @@ public class SubmissionService {
     }
 
     /**
-     * Run the analysis container with a mounted zip file
+     * Run the analysis container with a mounted ZIP file for isolated processing.
+     * 
+     * <p>This method executes the core analysis logic by running a Docker container
+     * with the submission ZIP file mounted as a volume. The container handles
+     * extraction, compilation, and test execution in complete isolation.</p>
+     * 
+     * <p>The method uses the {@link DockerService#runContainerWithZipFile} method
+     * to ensure proper volume mounting and environment variable setup for the
+     * container execution.</p>
      *
-     * @param submissionId The ID of the submission being processed
-     * @param zipFilePath Path to the submission zip file
-     * @return Container execution result
+     * @param submissionId The unique ID of the submission being processed;
+     *                     used for container environment variables and logging
+     * @param zipFilePath Absolute path to the submission ZIP file on the host;
+     *                    must exist and be readable
+     * @return Container execution result containing exit code, stdout, and stderr;
+     *         never null but may indicate failure through exit code
+     * @throws RuntimeException if container creation, execution, or cleanup fails
+     * @see DockerService#runContainerWithZipFile(String, String, String, Map)
      */
     private DockerService.ContainerExecutionResult runAnalysisContainerWithZip(String submissionId, String zipFilePath) {
         Map<String, String> environmentVariables = new HashMap<>();
@@ -115,11 +207,28 @@ public class SubmissionService {
     }
 
     /**
-     * Publish container results to PubSub topic
-     * For now, we create a simple result file with container output
+     * Publish container execution results to the configured PubSub topic.
+     * 
+     * <p>This method creates a temporary results directory containing the container's
+     * output and publishes it as a ZIP file to the PubSub topic. The results include
+     * the container's exit code, stdout, and stderr for comprehensive analysis.</p>
+     * 
+     * <p>The method handles temporary file creation and cleanup automatically,
+     * ensuring no residual files are left on the system regardless of success
+     * or failure.</p>
+     * 
+     * <p><strong>Note:</strong> This implementation creates a simple text file
+     * with container output. Future versions may include more sophisticated
+     * result parsing and structured data generation.</p>
      *
-     * @param submissionId The submission ID
-     * @param containerResult The container execution result
+     * @param submissionId The unique submission ID for result correlation;
+     *                     included in PubSub message attributes
+     * @param containerResult The container execution result containing output data;
+     *                        must not be null
+     * @throws RuntimeException if temporary directory creation fails, file writing
+     *                          encounters errors, or PubSub publishing fails
+     * @see PubSubService#zipAndPublishResults(String, String)
+     * @see #cleanupDirectory(Path)
      */
     private void publishContainerResults(String submissionId, DockerService.ContainerExecutionResult containerResult) {
         try {
@@ -152,7 +261,17 @@ public class SubmissionService {
     }
 
     /**
-     * Clean up the zip file after processing
+     * Clean up a ZIP file after processing completion.
+     * 
+     * <p>This method safely removes the submission ZIP file from the file system
+     * to prevent disk space accumulation. It handles cases where the file may
+     * not exist or may have already been deleted.</p>
+     * 
+     * <p>Cleanup failures are logged as warnings but do not propagate as
+     * exceptions to avoid masking more serious processing errors.</p>
+     *
+     * @param zipFilePath Path to the ZIP file to be deleted;
+     *                    may be null or point to a non-existent file
      */
     private void cleanupZipFile(Path zipFilePath) {
         try {
@@ -166,7 +285,18 @@ public class SubmissionService {
     }
 
     /**
-     * Clean up a directory and its contents
+     * Recursively clean up a directory and all its contents.
+     * 
+     * <p>This method performs a depth-first deletion of the directory tree,
+     * removing all files and subdirectories. The deletion order ensures that
+     * files are deleted before their containing directories.</p>
+     * 
+     * <p>The method is fault-tolerant and will attempt to delete as many files
+     * as possible even if some deletions fail. Failures are logged but do not
+     * stop the cleanup process.</p>
+     *
+     * @param directory Path to the directory to be deleted recursively;
+     *                  may be null or point to a non-existent directory
      */
     private void cleanupDirectory(Path directory) {
         try {
