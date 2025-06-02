@@ -36,3 +36,9 @@ out/
 
 ### VS Code ###
 .vscode/
+
+# Google Cloud credentials
+credentials.json
+
+# Environment files
+*.env
