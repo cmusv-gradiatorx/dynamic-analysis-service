@@ -4,8 +4,8 @@ ARG JDK_VERSION=21
 # Base image of JDK_VERSION
 FROM amazoncorretto:${JDK_VERSION}
 
-# Build-time argument for Gradle version. Default is 8.10
-ARG GRADLE_VERSION=8.10
+# Build-time argument for Gradle version
+ARG GRADLE_VERSION=8.14.1
 
 # Install Gradle and other tools
 RUN yum update -y && \
