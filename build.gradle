@@ -22,6 +22,16 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
+	
+	// Docker Java client
+	implementation 'com.github.docker-java:docker-java:3.3.6'
+	implementation 'com.github.docker-java:docker-java-transport-httpclient5:3.3.6'
+	
+	// Google Cloud PubSub
+	implementation 'com.google.cloud:google-cloud-pubsub:1.128.1'
+	
+	// Additional utilities for file operations
+	implementation 'org.apache.commons:commons-compress:1.26.0'
 }
 
 tasks.named('test') {

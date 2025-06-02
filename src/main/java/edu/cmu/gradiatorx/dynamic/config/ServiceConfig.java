@@ -21,8 +21,12 @@ public class ServiceConfig {
     @Value("${dynamic.analysis.image.name:dynamic_test}")
     private String defaultImageName;
 
+    @Value("${dynamic.analysis.reports.path:build/reports}")
+    private String reportsPath;
+
     /**
      * Get the absolute path to the Docker configuration directory
+     *
      * @return Full path to docker directory
      */
     public String getDockerPath() {
@@ -32,6 +36,7 @@ public class ServiceConfig {
 
     /**
      * Get the absolute path to the unzip directory
+     *
      * @return Full path to unzip directory
      */
     public String getUnzipPath() {
@@ -41,9 +46,28 @@ public class ServiceConfig {
 
     /**
      * Get the default Docker image name
+     *
      * @return Default image name for dynamic analysis
      */
     public String getDefaultImageName() {
         return defaultImageName;
+    }
+
+    /**
+     * Get the path to test reports relative to the unzip directory
+     *
+     * @return Relative path to test reports
+     */
+    public String getReportsPath() {
+        return reportsPath;
+    }
+
+    /**
+     * Get the full path to test reports for a submission
+     *
+     * @return Full path to test reports directory
+     */
+    public String getFullReportsPath() {
+        return Paths.get(getUnzipPath(), reportsPath).toString();
     }
 } 

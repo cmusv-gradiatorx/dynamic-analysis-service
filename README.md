@@ -1,10 +1,9 @@
 # Dynamic Analysis Service
 
-This service take a program under test (PUT) as input and performs dynamic code analysis via unit tests and code coverage tools. If successful, the results are zipped and published to it's specified PubSub topic.
+This service takes a program under test (PUT) as input and performs dynamic code analysis via unit tests and code coverage tools. If successful, the results are zipped and published to its specified PubSub topic using native Java integrations.
 
 ## Submission Service
-Provides an API for assignment submission. After receiving the submission it attempts to build a Docker image and run the container. The results are zipped and published to the pub sub topic from the container.
-
+Provides an API for assignment submission. After receiving the submission it attempts to build a Docker image and run the container using Java Docker client. The results are zipped and published to the pub sub topic from the main application using Google Cloud Java SDK.
 
 | Method | Path              | Description                                                       |
 |--------|-------------------|-------------------------------------------------------------------|
@@ -18,7 +17,6 @@ dynamic-analysis-service
 │   ├── build.gradle                    # Gradle configuration for container builds
 │   ├── Dockerfile                      # Docker container configuration
 │   ├── settings.gradle                 # Gradle project settings for containers
-│   ├── zip_and_publish.py              # Python script for processing submissions
 │   └── unzip_files/                    # Directory for extracted submission files
 │
 ├── src/                                # Source code directory
@@ -30,12 +28,16 @@ dynamic-analysis-service
 │   │   │       │   └── ServiceConfig.java    # Centralized service configuration
 │   │   │       │
 │   │   │       ├── controller/         # REST API Controllers
-│   │   │       │   ├── SubmissionsController.java  # Handles submission endpoints
-│   │   │       │   └── DockerController.java       # Docker container management
+│   │   │       │   └── SubmissionsController.java  # Handles submission endpoints
 │   │   │       │
 │   │   │       ├── models/             # Data models and DTOs
 │   │   │       │   ├── PubSubMessage.java          # Message structure for Pub/Sub
 │   │   │       │   └── PubSubPayload.java          # Payload structure for submissions
+│   │   │       │
+│   │   │       ├── service/            # Business logic services
+│   │   │       │   ├── SubmissionService.java      # Main submission processing logic
+│   │   │       │   ├── DockerService.java          # Java Docker client operations
+│   │   │       │   └── PubSubService.java          # Google Cloud PubSub operations
 │   │   │       │
 │   │   │       ├── utils/              # Utility classes and helper methods
 │   │   │       │   └── UnzipSubmission.java        # Handles file decompression
@@ -58,7 +60,7 @@ dynamic-analysis-service
 - Java 21 (or later)
 - Gradle 8.10 (or later)
 - Docker Desktop
-
+- Google Cloud credentials (credentials.json or environment variable)
 
 ## Installation
 
@@ -73,6 +75,10 @@ dynamic-analysis-service
     cd dynamic-analysis-service
     ```
 
+3. Set up Google Cloud credentials:
+   - Place `credentials.json` in the project root, OR
+   - Set the `GOOGLE_APPLICATION_CREDENTIALS` environment variable
+
 ## Configuration
 
 The service can be configured via `src/main/resources/application.properties`:
@@ -82,12 +88,20 @@ The service can be configured via `src/main/resources/application.properties`:
 dynamic.analysis.docker.path=docker
 dynamic.analysis.unzip.path=docker/unzip_files
 dynamic.analysis.image.name=dynamic_test
+dynamic.analysis.reports.path=build/reports
+
+# Google Cloud Configuration
+google.cloud.project.id=gradiatorx
+dynamic.analysis.pubsub.topic=dynamic-analysis-result
 ```
 
 These properties control:
 - `docker.path`: Location of Docker configuration files
 - `unzip.path`: Directory for extracting submission files
 - `image.name`: Default Docker image name for dynamic analysis
+- `reports.path`: Relative path to test reports within submission
+- `project.id`: Google Cloud project ID
+- `pubsub.topic`: PubSub topic for publishing results
 
 ## Running the project
 
@@ -126,8 +140,13 @@ Comprehensive API specification is available via Swagger UI, which allows you to
 
 ### Controllers
 
-- **SubmissionsController.java**: Handles HTTP requests for submission endpoints
-- **DockerController.java**: Docker container management logic with improved logging
+- **SubmissionsController.java**: Handles HTTP requests for submission endpoints with proper REST responses
+
+### Services
+
+- **SubmissionService.java**: Main business logic for processing submissions
+- **DockerService.java**: Java Docker client for building images and running containers (replaces shell commands)
+- **PubSubService.java**: Google Cloud PubSub integration for publishing results (replaces Python script)
 
 ### Models
 
@@ -141,74 +160,49 @@ Comprehensive API specification is available via Swagger UI, which allows you to
 ### Docker Configuration
 
 - **docker/build.gradle**: Gradle configuration script for container builds
-- **docker/Dockerfile**: Docker container configuration for Java programs
+- **docker/Dockerfile**: Simplified Docker container configuration (no Python dependencies)
 - **docker/settings.gradle**: Gradle project settings for containers
-- **docker/zip_and_publish.py**: Python script for processing submissions
 
 **InitialApplication.java**: Spring Boot main application class
+
+## Technology Stack
+
+### Core Technologies
+- **Java 21**: Main programming language
+- **Spring Boot 3.4.4**: Application framework
+- **Gradle 8.10+**: Build system
+
+### Integration Libraries
+- **Docker Java Client 3.3.6**: Native Java Docker integration
+- **Google Cloud PubSub 1.128.1**: Native Java PubSub client
+- **Apache Commons Compress 1.26.0**: ZIP file operations
+
+### Key Improvements
+- ✅ **Native Java Docker Client**: Replaces shell command execution
+- ✅ **Native Google Cloud SDK**: Replaces Python script dependencies
+- ✅ **Improved Error Handling**: Better exception management and logging
+- ✅ **Type Safety**: Full Java type checking instead of shell scripts
+- ✅ **Better Resource Management**: Proper connection and resource cleanup
 
 ## Docker
 
 ### Building and running
 
 #### Building
-The docker-build bash script contains the docker build command with build time arguments. Excluding the build-arg 
-argument will build the image with version defaults found in the Dockerfile.
-
-JDK_VERSION controls the major version of Java development kit being used.
-GRADLE_VERSION controls the version of Gradle being used.
+Build the Docker image from the docker directory:
 
    ```
-   docker build --build-arg JDK_VERSION=17 --build-arg GRADLE_VERSION=7.3 -t image_name:latest ./docker
+   docker build --build-arg JDK_VERSION=21 --build-arg GRADLE_VERSION=8.10 -t dynamic_test:latest ./docker
    ```
 
 #### Running
 
-Run the container with the following command
+Run the container with the following command:
    ```
-   docker run -it container_name:latest
-   ```
-
-
-#### Compatibility Matrix
-See the compatibility matrix below to view the minimum Gradle version needed for the specified JDK.
-(visit https://docs.gradle.org/current/userguide/compatibility.html for full compatibility matrix)
-   ```
-   +----------+------------------------+--------------------------+
-   | Java     | Support for            | Support for running      |
-   | version  | toolchains             | Gradle                   |
-   +----------+------------------------+--------------------------+
-   | 11       | N/A                    | 5.0                      |
-   | 12       | N/A                    | 5.4                      |
-   | 13       | N/A                    | 6.0                      |
-   | 14       | N/A                    | 6.3                      |
-   | 15       | 6.7                    | 6.7                      |
-   | 16       | 7.0                    | 7.0                      |
-   | 17       | 7.3                    | 7.3                      |
-   | 18       | 7.5                    | 7.5                      |
-   | 19       | 7.6                    | 7.6                      |
-   | 20       | 8.1                    | 8.3                      |
-   | 21       | 8.4                    | 8.5                      |
-   | 22       | 8.7                    | 8.8                      |
-   | 23       | 8.10                   | 8.10                     |
-   | 24       | N/A                    | N/A                      |
-   +----------+------------------------+--------------------------+
-   ```
-### Useful commands
-Search for an image by name
-   ```
-   docker search --filter is-official=true <image_name>
+   docker run -it dynamic_test:latest
    ```
 
-Pull and run image
-   ```
-   docker run -p 8080:80 --rm <image_name>
-   ```
-
-Build and push an image
-   ```
-   docker build -t <YOUR-USERNAME>/<image_name> ./docker
-   ```
+Note: The container now only runs `gradle clean test`. Result publishing is handled by the main Spring Boot application using Java.
 
 ## Contributing
 
