@@ -2,33 +2,40 @@ package edu.cmu.gradiatorx.dynamic.utils;
 
 import edu.cmu.gradiatorx.dynamic.config.ServiceConfig;
 
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 public class UnzipSubmission {
-    public static void saveZipToDisk(byte[] zipBytes, ServiceConfig serviceConfig) throws IOException {
-
-        // Use configured unzip path
-        String outputDirPath = serviceConfig.getUnzipPath();
-        File outputDir = new File(outputDirPath);
-
-        if (!outputDir.exists()) outputDir.mkdirs();
-
-        try (ZipInputStream zis = new ZipInputStream(new ByteArrayInputStream(zipBytes))) {
-            ZipEntry entry;
-            while ((entry = zis.getNextEntry()) != null) {
-                File outFile = new File(outputDir, entry.getName());
-                outFile.getParentFile().mkdirs();
-                try (FileOutputStream fos = new FileOutputStream(outFile)) {
-                    zis.transferTo(fos);
-                }
-                System.out.println(":page_facing_up: Saved: " + outFile.getAbsolutePath());
-                zis.closeEntry();
-            }
+    
+    /**
+     * Save the zip file to disk with submission ID as filename
+     * The zip file will be extracted inside the Docker container to avoid concurrency issues
+     * 
+     * @param zipBytes The zip file data
+     * @param submissionId The unique submission ID to use as filename
+     * @param serviceConfig Service configuration for paths
+     * @return Path to the saved zip file
+     * @throws IOException if there's an error saving the file
+     */
+    public static Path saveZipToDisk(byte[] zipBytes, String submissionId, ServiceConfig serviceConfig) throws IOException {
+        // Create submissions directory path
+        String currentDir = System.getProperty("user.dir");
+        Path submissionsDir = Paths.get(currentDir, serviceConfig.getSubmissionsPath());
+        
+        // Ensure the submissions directory exists
+        if (!Files.exists(submissionsDir)) {
+            Files.createDirectories(submissionsDir);
         }
+        
+        // Create zip file path with submission ID as filename
+        Path zipFilePath = submissionsDir.resolve(submissionId + ".zip");
+        
+        // Write zip file to disk
+        Files.write(zipFilePath, zipBytes);
+        
+        System.out.println("📁 Saved submission ZIP: " + zipFilePath.toAbsolutePath());
+        return zipFilePath;
     }
 }

@@ -18,6 +18,9 @@ public class ServiceConfig {
     @Value("${dynamic.analysis.unzip.path:docker/unzip_files}")
     private String unzipPath;
 
+    @Value("${dynamic.analysis.submissions.path:submissions}")
+    private String submissionsPath;
+
     @Value("${dynamic.analysis.image.name:dynamic_test}")
     private String defaultImageName;
 
@@ -42,6 +45,15 @@ public class ServiceConfig {
     public String getUnzipPath() {
         String currentDir = System.getProperty("user.dir");
         return Paths.get(currentDir, unzipPath).toString();
+    }
+
+    /**
+     * Get the path for storing submission zip files
+     *
+     * @return Relative path to submissions directory
+     */
+    public String getSubmissionsPath() {
+        return submissionsPath;
     }
 
     /**

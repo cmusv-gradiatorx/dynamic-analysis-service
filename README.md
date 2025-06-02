@@ -1,13 +1,21 @@
 # Dynamic Analysis Service
 
-This service takes a program under test (PUT) as input and performs dynamic code analysis via unit tests and code coverage tools. If successful, the results are zipped and published to its specified PubSub topic using native Java integrations.
+This service takes a program under test (PUT) as input and performs dynamic code analysis via unit tests and code coverage tools. The service handles concurrent submissions by isolating each submission in its own Docker container with unique file naming. Results are zipped and published to PubSub topics using native Java integrations.
 
 ## Submission Service
-Provides an API for assignment submission. After receiving the submission it attempts to build a Docker image and run the container using Java Docker client. The results are zipped and published to the pub sub topic from the main application using Google Cloud Java SDK.
+Provides an API for assignment submission with full concurrency support. After receiving a submission, it saves the ZIP file with a unique submission ID, builds a Docker image, and runs the container with the mounted ZIP file. Each submission is processed in isolation to prevent conflicts. Results are published to the pub sub topic from the main application using Google Cloud Java SDK.
 
 | Method | Path              | Description                                                       |
 |--------|-------------------|-------------------------------------------------------------------|
-| POST   | /submissions      | Create a submission and run unit tests inside a Docker container. |
+| POST   | /submissions      | Create a submission and run unit tests inside an isolated Docker container. |
+
+## Concurrent Processing
+
+The service is designed to handle multiple submissions simultaneously:
+- **Unique File Naming**: Each submission ZIP is saved with its submission ID as the filename
+- **Isolated Containers**: Each submission runs in its own Docker container instance  
+- **No Shared State**: Containers don't share file systems or temporary directories
+- **Volume Mounting**: ZIP files are mounted read-only into containers for processing
 
 ## Folder Structure
 ```
@@ -15,9 +23,12 @@ dynamic-analysis-service
 │
 ├── docker/                             # Docker configuration and scripts
 │   ├── build.gradle                    # Gradle configuration for container builds
-│   ├── Dockerfile                      # Docker container configuration
-│   ├── settings.gradle                 # Gradle project settings for containers
-│   └── unzip_files/                    # Directory for extracted submission files
+│   ├── Dockerfile                      # Docker container configuration with extraction logic
+│   └── settings.gradle                 # Gradle project settings for containers
+│
+├── submissions/                        # Individual submission ZIP files (created at runtime)
+│   ├── submission1.zip                 # ZIP file for submission ID "submission1"
+│   └── submission2.zip                 # ZIP file for submission ID "submission2"
 │
 ├── src/                                # Source code directory
 │   ├── main/                           # Main application source code
@@ -40,7 +51,7 @@ dynamic-analysis-service
 │   │   │       │   └── PubSubService.java          # Google Cloud PubSub operations
 │   │   │       │
 │   │   │       ├── utils/              # Utility classes and helper methods
-│   │   │       │   └── UnzipSubmission.java        # Handles file decompression
+│   │   │       │   └── UnzipSubmission.java        # Handles ZIP file saving with unique names
 │   │   │       │
 │   │   │       └── InitialApplication.java         # Spring Boot main application class
 │   │   │
@@ -86,7 +97,7 @@ The service can be configured via `src/main/resources/application.properties`:
 ```properties
 # Dynamic Analysis Service Configuration
 dynamic.analysis.docker.path=docker
-dynamic.analysis.unzip.path=docker/unzip_files
+dynamic.analysis.submissions.path=submissions
 dynamic.analysis.image.name=dynamic_test
 dynamic.analysis.reports.path=build/reports
 
@@ -97,7 +108,7 @@ dynamic.analysis.pubsub.topic=dynamic-analysis-result
 
 These properties control:
 - `docker.path`: Location of Docker configuration files
-- `unzip.path`: Directory for extracting submission files
+- `submissions.path`: Directory for storing individual submission ZIP files
 - `image.name`: Default Docker image name for dynamic analysis
 - `reports.path`: Relative path to test reports within submission
 - `project.id`: Google Cloud project ID
@@ -116,7 +127,23 @@ These properties control:
    Run 'InitialApplication main()'
    ```
 
-## API Specification
+## Processing Flow
+
+### Concurrent Submission Handling
+
+1. **Receive Submission**: REST endpoint receives POST with PubSub payload
+2. **Save ZIP File**: ZIP data is saved as `{submissionId}.zip` in submissions directory
+3. **Build Docker Image**: Shared image is built once (cached for subsequent submissions)
+4. **Mount & Run**: ZIP file is mounted into container at `/workspace/{submissionId}.zip`
+5. **Container Processing**:
+   - Creates isolated directory `/workspace/submission_{submissionId}`
+   - Extracts ZIP file within container
+   - Runs `gradle clean test` on extracted code
+   - Generates test reports
+6. **Result Collection**: Container output is captured and published to PubSub
+7. **Cleanup**: ZIP file and temporary data are cleaned up
+
+### API Specification
 
 Comprehensive API specification is available via Swagger UI, which allows you to explore all available endpoints interactively.
 
@@ -144,9 +171,9 @@ Comprehensive API specification is available via Swagger UI, which allows you to
 
 ### Services
 
-- **SubmissionService.java**: Main business logic for processing submissions
-- **DockerService.java**: Java Docker client for building images and running containers (replaces shell commands)
-- **PubSubService.java**: Google Cloud PubSub integration for publishing results (replaces Python script)
+- **SubmissionService.java**: Main business logic for processing submissions with concurrency support
+- **DockerService.java**: Java Docker client for building images and running isolated containers
+- **PubSubService.java**: Google Cloud PubSub integration for publishing results
 
 ### Models
 
@@ -155,12 +182,12 @@ Comprehensive API specification is available via Swagger UI, which allows you to
 
 ### Utils
 
-- **UnzipSubmission.java**: Handles decompression of submission files with configurable paths
+- **UnzipSubmission.java**: Handles saving ZIP files with unique submission ID naming
 
 ### Docker Configuration
 
 - **docker/build.gradle**: Gradle configuration script for container builds
-- **docker/Dockerfile**: Simplified Docker container configuration (no Python dependencies)
+- **docker/Dockerfile**: Container with built-in ZIP extraction and processing logic
 - **docker/settings.gradle**: Gradle project settings for containers
 
 **InitialApplication.java**: Spring Boot main application class
@@ -173,16 +200,18 @@ Comprehensive API specification is available via Swagger UI, which allows you to
 - **Gradle 8.10+**: Build system
 
 ### Integration Libraries
-- **Docker Java Client 3.3.6**: Native Java Docker integration
+- **Docker Java Client 3.3.6**: Native Java Docker integration with volume mounting
 - **Google Cloud PubSub 1.128.1**: Native Java PubSub client
 - **Apache Commons Compress 1.26.0**: ZIP file operations
 
 ### Key Improvements
+- ✅ **Concurrent Processing**: Multiple submissions handled simultaneously without conflicts
+- ✅ **Isolated Containers**: Each submission runs in its own container environment
+- ✅ **Unique File Naming**: Submission IDs ensure no file name collisions
 - ✅ **Native Java Docker Client**: Replaces shell command execution
 - ✅ **Native Google Cloud SDK**: Replaces Python script dependencies
-- ✅ **Improved Error Handling**: Better exception management and logging
-- ✅ **Type Safety**: Full Java type checking instead of shell scripts
-- ✅ **Better Resource Management**: Proper connection and resource cleanup
+- ✅ **Volume Mounting**: Efficient file sharing between host and containers
+- ✅ **Automatic Cleanup**: Temporary files and containers are cleaned up after processing
 
 ## Docker
 
@@ -192,17 +221,32 @@ Comprehensive API specification is available via Swagger UI, which allows you to
 Build the Docker image from the docker directory:
 
    ```
-   docker build --build-arg JDK_VERSION=21 --build-arg GRADLE_VERSION=8.10 -t dynamic_test:latest ./docker
+   docker build --build-arg JDK_VERSION=21 --build-arg GRADLE_VERSION=8.14.1 -t dynamic_test:latest ./docker
    ```
 
 #### Running
 
-Run the container with the following command:
+The container now accepts mounted ZIP files and processes them internally:
    ```
-   docker run -it dynamic_test:latest
+   docker run -v /path/to/submission.zip:/workspace/submission.zip -e SUBMISSION_ID=test123 -e ZIP_FILE_NAME=submission.zip dynamic_test:latest
    ```
 
-Note: The container now only runs `gradle clean test`. Result publishing is handled by the main Spring Boot application using Java.
+#### Container Processing
+
+The container automatically:
+1. Validates the mounted ZIP file exists
+2. Creates an isolated workspace directory
+3. Extracts the ZIP file contents
+4. Copies build configuration templates
+5. Runs `gradle clean test`
+6. Reports results to stdout
+
+## Scaling and Performance
+
+- **Horizontal Scaling**: Multiple service instances can run simultaneously
+- **Container Isolation**: No shared state between concurrent submissions
+- **Resource Management**: Each container has isolated CPU/memory limits
+- **Cleanup Automation**: Automatic cleanup prevents resource leaks
 
 ## Contributing
 

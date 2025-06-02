@@ -23,14 +23,61 @@ RUN yum update -y && \
 ENV GRADLE_HOME=/opt/gradle/gradle-${GRADLE_VERSION}
 ENV PATH=$PATH:$GRADLE_HOME/bin
 
-# Application setup
-WORKDIR /DynamicAnalysis
-COPY build.gradle .
-COPY settings.gradle .
-COPY unzip_files ./src
+# Create workspace directory for submissions
+WORKDIR /workspace
 
-# Build the project
-RUN gradle build
+# Copy build configuration templates
+COPY build.gradle ./build.gradle.template
+COPY settings.gradle ./settings.gradle.template
 
-# Run only gradle clean test - publishing is handled by the main application
-CMD ["gradle", "clean", "test"]
+# Create entrypoint script for processing submissions
+RUN cat > /workspace/process_submission.sh << 'EOF'
+#!/bin/bash
+set -e
+
+echo "Starting submission processing..."
+echo "Submission ID: $SUBMISSION_ID"
+echo "Zip file: $ZIP_FILE_NAME"
+
+# Check if zip file exists
+if [ ! -f "/workspace/$ZIP_FILE_NAME" ]; then
+    echo "ERROR: Zip file /workspace/$ZIP_FILE_NAME not found!"
+    exit 1
+fi
+
+# Create submission-specific directory
+mkdir -p "/workspace/submission_$SUBMISSION_ID"
+cd "/workspace/submission_$SUBMISSION_ID"
+
+# Extract the zip file
+echo "Extracting zip file..."
+unzip -q "/workspace/$ZIP_FILE_NAME" -d .
+
+# Copy build configuration
+cp ../build.gradle.template ./build.gradle
+cp ../settings.gradle.template ./settings.gradle
+
+# List extracted contents for debugging
+echo "Extracted contents:"
+find . -type f | head -20
+
+# Run gradle build and test
+echo "Running gradle clean test..."
+gradle clean test
+
+# Check if reports were generated
+if [ -d "build/reports" ]; then
+    echo "Test reports generated successfully"
+    find build/reports -type f | head -10
+else
+    echo "WARNING: No test reports found in build/reports"
+fi
+
+echo "Processing completed successfully"
+EOF
+
+# Make the script executable
+RUN chmod +x /workspace/process_submission.sh
+
+# Set the entrypoint to process submissions
+ENTRYPOINT ["/workspace/process_submission.sh"]
