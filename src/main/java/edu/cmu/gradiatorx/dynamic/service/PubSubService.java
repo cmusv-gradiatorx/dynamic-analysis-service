@@ -24,12 +24,12 @@ import java.util.stream.Stream;
 
 /**
  * Service for handling Google Cloud Pub/Sub operations and result publishing.
- * 
+ *
  * <p>This service replaces the Python-based {@code zip_and_publish.py} functionality
  * with native Java implementation using the Google Cloud Pub/Sub client library.
  * It handles the complete workflow of zipping test results and publishing them
  * to configured Pub/Sub topics.</p>
- * 
+ *
  * <p>Key features:</p>
  * <ul>
  *   <li>Native ZIP file creation using Apache Commons Compress</li>
@@ -38,10 +38,10 @@ import java.util.stream.Stream;
  *   <li>Comprehensive error handling and logging</li>
  *   <li>Automatic cleanup of temporary resources</li>
  * </ul>
- * 
+ *
  * <p>The service is thread-safe and can handle concurrent publishing operations
  * from multiple submission processing threads.</p>
- * 
+ *
  * @author Dynamic Analysis Service Team
  * @version 1.0
  * @since 1.0
@@ -67,7 +67,7 @@ public class PubSubService {
 
     /**
      * Zip test results from a directory and publish to the configured Pub/Sub topic.
-     * 
+     *
      * <p>This method performs the complete workflow of result publishing:</p>
      * <ol>
      *   <li>Validates the reports directory exists and contains files</li>
@@ -75,7 +75,7 @@ public class PubSubService {
      *   <li>Encodes the ZIP data as base64 for transport</li>
      *   <li>Publishes the encoded data to the Pub/Sub topic with submission metadata</li>
      * </ol>
-     * 
+     *
      * <p>The method handles empty directories gracefully by logging a warning
      * and skipping the publishing step.</p>
      *
@@ -115,22 +115,22 @@ public class PubSubService {
 
     /**
      * Create a ZIP archive from all files in the specified directory.
-     * 
+     *
      * <p>This method recursively walks through the directory structure and includes
      * all regular files in the ZIP archive. Directory structure is preserved,
      * and file paths in the ZIP are relative to the root directory.</p>
-     * 
+     *
      * <p>The method uses Apache Commons Compress for ZIP creation, ensuring
      * proper handling of file metadata and cross-platform compatibility.</p>
-     * 
+     *
      * <p>Empty directories are ignored - only files are included in the archive.</p>
      *
      * @param directoryPath Absolute or relative path to the directory to zip;
      *                      if relative, resolved against current working directory
      * @return Byte array containing the complete ZIP file data;
-     *         empty array if directory doesn't exist or contains no files
-     * @throws IOException if there's an error reading files, creating the ZIP,
-     *                     or if the directory is not accessible
+     * empty array if directory doesn't exist or contains no files
+     * @throws IOException       if there's an error reading files, creating the ZIP,
+     *                           or if the directory is not accessible
      * @throws SecurityException if file access is denied by security manager
      */
     private byte[] createZipFromDirectory(String directoryPath) throws IOException {
@@ -175,14 +175,14 @@ public class PubSubService {
 
     /**
      * Publish a message to the configured Pub/Sub topic with submission metadata.
-     * 
+     *
      * <p>This method creates a Pub/Sub publisher, sends the message with appropriate
      * attributes, and ensures proper resource cleanup. The publishing operation
      * is asynchronous but this method blocks until completion or failure.</p>
-     * 
+     *
      * <p>Message attributes include the submission ID for correlation and tracking
      * in downstream processing systems.</p>
-     * 
+     *
      * <p>The publisher is created fresh for each message to ensure isolation
      * and proper resource management, though this could be optimized for
      * high-throughput scenarios by connection pooling.</p>
@@ -190,10 +190,10 @@ public class PubSubService {
      * @param data         The base64-encoded ZIP data to publish; must not be null
      * @param submissionId The submission ID to include in message attributes;
      *                     used for message correlation and routing
-     * @throws Exception if publisher creation fails, message publishing fails,
-     *                   or if authentication/authorization is denied
+     * @throws Exception            if publisher creation fails, message publishing fails,
+     *                              or if authentication/authorization is denied
      * @throws InterruptedException if the publishing operation is interrupted
-     * @throws ExecutionException if the publishing operation fails on the server side
+     * @throws ExecutionException   if the publishing operation fails on the server side
      * @see Publisher
      * @see PubsubMessage
      */

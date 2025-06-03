@@ -7,20 +7,20 @@ import java.nio.file.Paths;
 
 /**
  * Configuration class for Dynamic Analysis Service.
- * 
+ *
  * <p>This class centralizes all configuration management for the service,
  * including path management, service settings, and environment-specific
  * configurations. It uses Spring's {@code @Value} annotation to inject
  * properties from application.properties or environment variables.</p>
- * 
+ *
  * <p>The configuration supports both relative and absolute paths, automatically
  * resolving relative paths based on the current working directory. This design
  * enables flexible deployment across different environments while maintaining
  * consistent behavior.</p>
- * 
+ *
  * <p>All path-related methods return absolute paths to ensure consistent
  * file system operations regardless of the application's working directory.</p>
- * 
+ *
  * @author Dynamic Analysis Service Team
  * @version 1.0
  * @since 1.0
@@ -53,7 +53,7 @@ public class ServiceConfig {
      * Default Docker image name used for dynamic analysis containers.
      * This image contains the analysis environment and test execution tools.
      */
-    @Value("${dynamic.analysis.image.name:dynamic_test}")
+    @Value("${dynamic.analysis.image.name:dynamic}")
     private String defaultImageName;
 
     /**
@@ -65,7 +65,7 @@ public class ServiceConfig {
 
     /**
      * Get the absolute path to the Docker configuration directory.
-     * 
+     *
      * <p>This directory contains all Docker-related files including Dockerfile,
      * Gradle build scripts, and configuration templates used by containers.</p>
      *
@@ -78,7 +78,7 @@ public class ServiceConfig {
 
     /**
      * Get the absolute path to the unzip directory.
-     * 
+     *
      * <p>This method is maintained for backward compatibility. In the current
      * implementation, submissions are processed using direct ZIP mounting
      * rather than extraction to this directory.</p>
@@ -92,7 +92,7 @@ public class ServiceConfig {
 
     /**
      * Get the relative path for storing submission ZIP files.
-     * 
+     *
      * <p>This directory stores individual submission ZIP files, each named
      * with its unique submission ID to ensure isolation and prevent conflicts
      * between concurrent submissions.</p>
@@ -105,7 +105,7 @@ public class ServiceConfig {
 
     /**
      * Get the default Docker image name for dynamic analysis.
-     * 
+     *
      * <p>This image name is used when building and running containers for
      * submission analysis. The image should contain all necessary tools
      * for compiling and testing submitted code.</p>
@@ -118,7 +118,7 @@ public class ServiceConfig {
 
     /**
      * Get the relative path to test reports within a submission directory.
-     * 
+     *
      * <p>This path is relative to the submission's working directory and
      * typically points to where Gradle generates test reports and coverage data.</p>
      *
@@ -130,10 +130,10 @@ public class ServiceConfig {
 
     /**
      * Get the full absolute path to test reports for a submission.
-     * 
+     *
      * <p>This method combines the unzip path with the reports path to provide
      * the complete location where test reports can be found after analysis.</p>
-     * 
+     *
      * <p><strong>Note:</strong> This method is primarily used for legacy
      * compatibility. Current implementations may generate reports in different
      * locations depending on the container's internal structure.</p>

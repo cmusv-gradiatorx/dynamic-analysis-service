@@ -1,6 +1,6 @@
 package edu.cmu.gradiatorx.dynamic.controller;
 
-import edu.cmu.gradiatorx.dynamic.models.PubSubPayload;
+import edu.cmu.gradiatorx.dynamic.model.PubSubPayload;
 import edu.cmu.gradiatorx.dynamic.service.SubmissionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -16,19 +16,19 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * REST Controller for handling assignment submissions and dynamic code analysis.
- * 
+ *
  * <p>This controller provides HTTP endpoints for receiving code submissions,
  * processing them through Docker containers, and coordinating the entire
  * dynamic analysis workflow. It delegates the actual processing logic to
  * the {@link SubmissionService}.</p>
- * 
+ *
  * <p>The controller is designed to handle concurrent submissions safely,
  * with each submission processed in isolation to prevent conflicts.</p>
- * 
+ *
  * @author Dynamic Analysis Service Team
  * @version 1.0
- * @since 1.0
  * @see SubmissionService
+ * @since 1.0
  */
 @RestController
 @RequestMapping("/submissions")
@@ -44,7 +44,7 @@ public class SubmissionsController {
 
     /**
      * Constructs a new SubmissionsController with the required dependencies.
-     * 
+     *
      * @param submissionService the service responsible for processing submissions;
      *                          must not be null
      */
@@ -55,7 +55,7 @@ public class SubmissionsController {
 
     /**
      * Receives and processes a code submission for dynamic analysis.
-     * 
+     *
      * <p>This endpoint accepts a Pub/Sub payload containing a base64-encoded ZIP file
      * with the code submission. The submission is processed through the following steps:</p>
      * <ol>
@@ -67,11 +67,11 @@ public class SubmissionsController {
      *   <li>Publish results to Google Cloud Pub/Sub topic</li>
      *   <li>Clean up temporary files and resources</li>
      * </ol>
-     * 
+     *
      * <p>The method supports concurrent processing - multiple submissions can be
      * processed simultaneously without conflicts due to unique file naming and
      * container isolation.</p>
-     * 
+     *
      * @param payload the Pub/Sub payload containing the submission data.
      *                Must include:
      *                <ul>
@@ -79,10 +79,10 @@ public class SubmissionsController {
      *                  <li>message.attributes.submissionId: unique submission identifier</li>
      *                </ul>
      * @return ResponseEntity containing:
-     *         <ul>
-     *           <li>200 OK: if submission was received and processing started successfully</li>
-     *           <li>400 Bad Request: if submission data is invalid or processing fails</li>
-     *         </ul>
+     * <ul>
+     *   <li>200 OK: if submission was received and processing started successfully</li>
+     *   <li>400 Bad Request: if submission data is invalid or processing fails</li>
+     * </ul>
      * @throws RuntimeException if there are unrecoverable errors during processing
      * @see PubSubPayload
      * @see SubmissionService#processSubmission(PubSubPayload)

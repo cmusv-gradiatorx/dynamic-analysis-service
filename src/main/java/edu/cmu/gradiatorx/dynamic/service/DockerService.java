@@ -5,12 +5,7 @@ import com.github.dockerjava.api.command.BuildImageCmd;
 import com.github.dockerjava.api.command.BuildImageResultCallback;
 import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.command.WaitContainerResultCallback;
-import com.github.dockerjava.api.model.AccessMode;
-import com.github.dockerjava.api.model.Bind;
-import com.github.dockerjava.api.model.BuildResponseItem;
-import com.github.dockerjava.api.model.Frame;
-import com.github.dockerjava.api.model.StreamType;
-import com.github.dockerjava.api.model.Volume;
+import com.github.dockerjava.api.model.*;
 import com.github.dockerjava.core.DefaultDockerClientConfig;
 import com.github.dockerjava.core.DockerClientBuilder;
 import com.github.dockerjava.core.command.LogContainerResultCallback;
@@ -26,20 +21,23 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.HashMap;
+
+import com.github.dockerjava.api.model.HostConfig;
+import com.github.dockerjava.api.async.ResultCallbackTemplate;
 
 /**
  * Service for managing Docker operations using the Java Docker client.
- * 
+ *
  * <p>This service provides a native Java implementation for Docker operations,
  * replacing shell command execution with proper Java API calls. It handles
  * Docker image building, container lifecycle management, volume mounting,
  * and resource cleanup with comprehensive error handling.</p>
- * 
+ *
  * <p>Key features:</p>
  * <ul>
  *   <li>Native Java Docker client integration for cross-platform compatibility</li>
@@ -49,26 +47,26 @@ import java.util.HashMap;
  *   <li>Automatic resource cleanup to prevent container and image accumulation</li>
  *   <li>Concurrent container execution support for multiple submissions</li>
  * </ul>
- * 
+ *
  * <p>The service is designed for high-throughput environments where multiple
  * submissions need to be processed simultaneously without interference. Each
  * container execution is isolated and tracked independently.</p>
- * 
+ *
  * <p><strong>Note:</strong> This class requires Docker Java client dependencies
  * to be present in the classpath. If dependencies are missing, the service
  * will fail to initialize.</p>
- * 
+ *
  * @author Dynamic Analysis Service Team
  * @version 1.0
- * @since 1.0
  * @see DockerClient
  * @see org.springframework.stereotype.Service
+ * @since 1.0
  */
 @Service
 public class DockerService {
 
     private static final Logger logger = LoggerFactory.getLogger(DockerService.class);
-    
+
     /**
      * The Docker client instance used for all Docker operations.
      * Configured to connect to the local Docker daemon via Unix socket.
@@ -77,11 +75,11 @@ public class DockerService {
 
     /**
      * Constructs a new DockerService and initializes the Docker client.
-     * 
+     *
      * <p>The constructor configures the Docker client to connect to the local
      * Docker daemon using Unix socket communication. It sets up connection
      * pooling, timeouts, and SSL configuration for optimal performance.</p>
-     * 
+     *
      * <p>Connection configuration:</p>
      * <ul>
      *   <li>Docker host: unix:///var/run/docker.sock</li>
@@ -89,7 +87,7 @@ public class DockerService {
      *   <li>Connection timeout: 30 seconds</li>
      *   <li>Response timeout: 45 seconds</li>
      * </ul>
-     * 
+     *
      * @throws RuntimeException if Docker client initialization fails due to
      *                          missing Docker daemon, permission issues, or
      *                          network connectivity problems
@@ -117,11 +115,11 @@ public class DockerService {
 
     /**
      * Build a Docker image from the specified directory containing a Dockerfile.
-     * 
+     *
      * <p>This method builds a Docker image using the provided build context directory.
      * The build process includes dependency installation, environment setup, and
      * any custom configuration specified in the Dockerfile.</p>
-     * 
+     *
      * <p>Build features:</p>
      * <ul>
      *   <li>Incremental builds with layer caching for performance</li>
@@ -129,7 +127,7 @@ public class DockerService {
      *   <li>Real-time build output logging for debugging</li>
      *   <li>Proper error handling and cleanup on failure</li>
      * </ul>
-     * 
+     *
      * <p>The method is idempotent - calling it multiple times with the same
      * parameters will reuse cached layers where possible.</p>
      *
@@ -138,11 +136,10 @@ public class DockerService {
      * @param dockerfilePath The absolute path to the directory containing the Dockerfile;
      *                       must exist and contain a valid Dockerfile
      * @return true if the image was built successfully and is ready for use;
-     *         false if the build failed due to Dockerfile errors, missing dependencies,
-     *         or Docker daemon issues
+     * false if the build failed due to Dockerfile errors, missing dependencies,
+     * or Docker daemon issues
      * @throws IllegalArgumentException if imageName is null/empty or dockerfilePath
      *                                  points to a non-existent directory
-     * @see #runContainer(String, Map)
      * @see #runContainerWithZipFile(String, String, String, Map)
      */
     public boolean buildDockerImage(String imageName, String dockerfilePath) {
@@ -188,106 +185,12 @@ public class DockerService {
     }
 
     /**
-     * Run a Docker container with specified environment variables.
-     * 
-     * <p>This method creates and runs a Docker container from the specified image,
-     * configures it with the provided environment variables, and monitors its
-     * execution until completion. All output is captured and returned.</p>
-     * 
-     * <p>Container execution features:</p>
-     * <ul>
-     *   <li>Isolated execution environment for each container</li>
-     *   <li>Real-time output capture from stdout and stderr</li>
-     *   <li>Automatic container cleanup after execution</li>
-     *   <li>Configurable timeout to prevent runaway processes</li>
-     * </ul>
-     *
-     * @param imageName            The Docker image name to run; must exist locally
-     *                             or be pullable from a registry
-     * @param environmentVariables Map of environment variables to pass to the container;
-     *                             may be empty but must not be null
-     * @return ContainerExecutionResult containing exit code, stdout, and stderr;
-     *         never null, but may indicate failure through non-zero exit code
-     * @throws RuntimeException if container creation fails, Docker daemon is
-     *                          unreachable, or resource limits are exceeded
-     * @see ContainerExecutionResult
-     * @see #runContainerWithZipFile(String, String, String, Map)
-     */
-    public ContainerExecutionResult runContainer(String imageName, Map<String, String> environmentVariables) {
-        try {
-            logger.info("Running Docker container from image: {}", imageName);
-
-            // Prepare environment variables
-            List<String> env = environmentVariables.entrySet().stream()
-                    .map(entry -> entry.getKey() + "=" + entry.getValue())
-                    .toList();
-
-            env.forEach(envVar -> logger.debug("Environment variable: {}", envVar));
-
-            // Create container
-            CreateContainerResponse container = dockerClient.createContainerCmd(imageName)
-                    .withEnv(env)
-                    .withAttachStdout(true)
-                    .withAttachStderr(true)
-                    .exec();
-
-            String containerId = container.getId();
-            logger.info("Created container: {}", containerId);
-
-            // Start container
-            dockerClient.startContainerCmd(containerId).exec();
-
-            // Wait for container to finish and collect logs
-            StringBuilder output = new StringBuilder();
-            StringBuilder errors = new StringBuilder();
-
-            try {
-                dockerClient.logContainerCmd(containerId)
-                        .withStdOut(true)
-                        .withStdErr(true)
-                        .withFollowStream(true)
-                        .exec(new LogContainerResultCallback() {
-                            @Override
-                            public void onNext(Frame frame) {
-                                String log = new String(frame.getPayload()).trim();
-                                if (frame.getStreamType() == StreamType.STDOUT) {
-                                    output.append(log).append("\n");
-                                    logger.info("[CONTAINER OUT] {}", log);
-                                } else if (frame.getStreamType() == StreamType.STDERR) {
-                                    errors.append(log).append("\n");
-                                    logger.warn("[CONTAINER ERR] {}", log);
-                                }
-                            }
-                        }).awaitCompletion(30, TimeUnit.MINUTES);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                logger.warn("Container log collection interrupted");
-            }
-
-            // Wait for container to finish
-            Integer exitCode = dockerClient.waitContainerCmd(containerId)
-                    .exec(new WaitContainerResultCallback())
-                    .awaitStatusCode();
-
-            // Remove container
-            dockerClient.removeContainerCmd(containerId).exec();
-            logger.info("🚀 Container completed with exit code: {}", exitCode);
-
-            return new ContainerExecutionResult(exitCode, output.toString(), errors.toString());
-
-        } catch (Exception e) {
-            logger.error("❌ Error running container: {}", e.getMessage(), e);
-            return new ContainerExecutionResult(-1, "", "Error: " + e.getMessage());
-        }
-    }
-
-    /**
      * Run a Docker container with a mounted ZIP file for submission processing.
-     * 
+     *
      * <p>This method provides isolated processing of submission files by mounting
      * the ZIP file into a container and running the analysis workflow. The container
      * handles extraction, compilation, testing, and result generation internally.</p>
-     * 
+     *
      * <p>Volume mounting features:</p>
      * <ul>
      *   <li>Read-only ZIP file mounting for security</li>
@@ -295,7 +198,7 @@ public class DockerService {
      *   <li>Unique submission ID environment variables</li>
      *   <li>Automatic cleanup of container resources</li>
      * </ul>
-     * 
+     *
      * <p>This method is the primary entry point for submission processing and
      * ensures complete isolation between concurrent submissions.</p>
      *
@@ -307,20 +210,20 @@ public class DockerService {
      * @param environmentVariables Additional environment variables to pass to container;
      *                             may be empty but must not be null
      * @return ContainerExecutionResult containing execution details and output;
-     *         never null, success determined by exit code
+     * never null, success determined by exit code
      * @throws RuntimeException if ZIP file doesn't exist, container creation fails,
      *                          or volume mounting encounters permission issues
-     * @see #runContainer(String, Map)
      * @see ContainerExecutionResult
      */
     public ContainerExecutionResult runContainerWithZipFile(String imageName, String zipFilePath, String submissionId, Map<String, String> environmentVariables) {
         try {
             logger.info("Running Docker container from image: {} with zip file: {}", imageName, zipFilePath);
 
+            final String zipFileName = Path.of(zipFilePath).getFileName().toString();
             // Prepare environment variables
             Map<String, String> allEnvVars = new HashMap<>(environmentVariables);
             allEnvVars.put("SUBMISSION_ID", submissionId);
-            allEnvVars.put("ZIP_FILE_NAME", submissionId + ".zip");
+            allEnvVars.put("ZIP_FILE_NAME", zipFileName);
 
             List<String> env = allEnvVars.entrySet().stream()
                     .map(entry -> entry.getKey() + "=" + entry.getValue())
@@ -329,14 +232,15 @@ public class DockerService {
             env.forEach(envVar -> logger.debug("Environment variable: {}", envVar));
 
             // Create bind mount for the zip file
-            String containerZipPath = "/workspace/" + submissionId + ".zip";
-            
+            String containerZipPath = "/workspace/" + zipFileName;
+
             // Create container with volume mount
             CreateContainerResponse container = dockerClient.createContainerCmd(imageName)
                     .withEnv(env)
                     .withAttachStdout(true)
                     .withAttachStderr(true)
-                    .withBinds(new Bind(zipFilePath, new Volume(containerZipPath), AccessMode.ro))
+                    .withHostConfig(HostConfig.newHostConfig()
+                            .withBinds(new Bind(zipFilePath, new Volume(containerZipPath), AccessMode.ro)))
                     .exec();
 
             String containerId = container.getId();
@@ -345,7 +249,7 @@ public class DockerService {
             // Start container
             dockerClient.startContainerCmd(containerId).exec();
 
-            // Wait for container to finish and collect logs
+            // Wait for container to finish and collect logs using ResultCallbackTemplate.Adapter
             StringBuilder output = new StringBuilder();
             StringBuilder errors = new StringBuilder();
 
@@ -354,7 +258,7 @@ public class DockerService {
                         .withStdOut(true)
                         .withStdErr(true)
                         .withFollowStream(true)
-                        .exec(new LogContainerResultCallback() {
+                        .exec(new ResultCallbackTemplate.Adapter<Frame>() {
                             @Override
                             public void onNext(Frame frame) {
                                 String log = new String(frame.getPayload()).trim();
@@ -391,18 +295,18 @@ public class DockerService {
 
     /**
      * Copy files from a container to the host filesystem.
-     * 
+     *
      * <p>This method extracts files from a running or stopped container to the
      * host filesystem. It's primarily used for retrieving test results, logs,
      * or generated artifacts after container execution.</p>
-     * 
+     *
      * <p><strong>Note:</strong> This method is provided for compatibility but
      * is not currently used in the main submission workflow, which relies on
      * container output capture instead.</p>
      *
-     * @param containerId The container ID to copy from; container may be running or stopped
+     * @param containerId   The container ID to copy from; container may be running or stopped
      * @param containerPath Path inside the container to copy from; must exist
-     * @param hostPath Path on the host to copy to; parent directories will be created
+     * @param hostPath      Path on the host to copy to; parent directories will be created
      * @return true if copy was successful; false if source doesn't exist or copy fails
      * @throws SecurityException if file access is denied by security manager
      * @see #extractTarArchive(InputStream, String)
@@ -410,13 +314,17 @@ public class DockerService {
     public boolean copyFromContainer(String containerId, String containerPath, String hostPath) {
         try {
             logger.info("Copying from container {} path {} to host path {}", containerId, containerPath, hostPath);
-            
+
             // Create host directory if it doesn't exist
             File hostDir = new File(hostPath).getParentFile();
             if (hostDir != null && !hostDir.exists()) {
-                hostDir.mkdirs();
+                boolean created = hostDir.mkdirs();
+                if (!created) {
+                    logger.error("Failed to create parent directories for: {}", hostPath);
+                    return false;
+                }
             }
-            
+
             // Copy archive from container
             try (InputStream tarStream = dockerClient.copyArchiveFromContainerCmd(containerId, containerPath).exec()) {
                 // Extract tar archive to host path
@@ -424,7 +332,7 @@ public class DockerService {
                 logger.info("✅ Successfully copied files from container");
                 return true;
             }
-            
+
         } catch (Exception e) {
             logger.error("❌ Failed to copy files from container: {}", e.getMessage(), e);
             return false;
@@ -433,16 +341,16 @@ public class DockerService {
 
     /**
      * Extract a tar archive to the specified directory.
-     * 
+     *
      * <p>This helper method extracts tar archives received from Docker containers.
      * It uses the system's tar command for simplicity, though production
      * environments might prefer a pure Java implementation.</p>
-     * 
+     *
      * <p><strong>Implementation Note:</strong> This method temporarily writes the
      * tar stream to disk before extraction. In high-throughput environments,
      * consider using a streaming tar library for better performance.</p>
      *
-     * @param tarStream The input stream containing tar data; will be consumed entirely
+     * @param tarStream       The input stream containing tar data; will be consumed entirely
      * @param destinationPath The directory to extract files to; will be created if needed
      * @throws IOException if tar stream reading fails, file writing fails,
      *                     or extraction process encounters errors
@@ -451,20 +359,23 @@ public class DockerService {
     private void extractTarArchive(InputStream tarStream, String destinationPath) throws IOException {
         File destDir = new File(destinationPath);
         if (!destDir.exists()) {
-            destDir.mkdirs();
+            boolean created = destDir.mkdirs();
+            if (!created) {
+                throw new IOException("Failed to create destination directory: " + destinationPath);
+            }
         }
-        
+
         // For simplicity, we'll write the tar stream to a file and extract it
         // In a production environment, you might want to use a proper tar library
         Path tempTarFile = Files.createTempFile("container-copy", ".tar");
-        
+
         try {
             Files.copy(tarStream, tempTarFile, StandardCopyOption.REPLACE_EXISTING);
-            
+
             // Extract using system tar command (simple approach)
             ProcessBuilder pb = new ProcessBuilder("tar", "-xf", tempTarFile.toString(), "-C", destinationPath);
             Process process = pb.start();
-            
+
             try {
                 int exitCode = process.waitFor();
                 if (exitCode != 0) {
@@ -474,7 +385,7 @@ public class DockerService {
                 Thread.currentThread().interrupt();
                 logger.warn("Tar extraction was interrupted");
             }
-            
+
         } finally {
             // Clean up temp file
             try {
@@ -487,40 +398,31 @@ public class DockerService {
 
     /**
      * Represents the result of a Docker container execution.
-     * 
+     *
      * <p>This immutable class encapsulates all information about a container's
      * execution including the exit code, captured output streams, and provides
      * convenience methods for determining success or failure.</p>
-     * 
+     *
      * <p>The class is thread-safe and can be safely shared between threads
      * for result processing and analysis.</p>
-     * 
+     *
+     * @param exitCode The exit code returned by the container process.
+     * @param stdout   All output captured from the container's stdout stream.
+     * @param stderr   All output captured from the container's stderr stream.
      * @author Dynamic Analysis Service Team
      * @version 1.0
      * @since 1.0
      */
-    public static class ContainerExecutionResult {
-        
-        /** The exit code returned by the container process. */
-        private final int exitCode;
-        
-        /** All output captured from the container's stdout stream. */
-        private final String stdout;
-        
-        /** All output captured from the container's stderr stream. */
-        private final String stderr;
+    public record ContainerExecutionResult(int exitCode, String stdout, String stderr) {
 
         /**
          * Constructs a new ContainerExecutionResult with the specified values.
          *
          * @param exitCode The exit code returned by the container
-         * @param stdout The standard output captured from the container
-         * @param stderr The standard error output captured from the container
+         * @param stdout   The standard output captured from the container
+         * @param stderr   The standard error output captured from the container
          */
-        public ContainerExecutionResult(int exitCode, String stdout, String stderr) {
-            this.exitCode = exitCode;
-            this.stdout = stdout;
-            this.stderr = stderr;
+        public ContainerExecutionResult {
         }
 
         /**
@@ -528,7 +430,8 @@ public class DockerService {
          *
          * @return The exit code; 0 typically indicates success
          */
-        public int getExitCode() {
+        @Override
+        public int exitCode() {
             return exitCode;
         }
 
@@ -537,7 +440,8 @@ public class DockerService {
          *
          * @return The stdout content; may be empty but never null
          */
-        public String getStdout() {
+        @Override
+        public String stdout() {
             return stdout;
         }
 
@@ -546,7 +450,8 @@ public class DockerService {
          *
          * @return The stderr content; may be empty but never null
          */
-        public String getStderr() {
+        @Override
+        public String stderr() {
             return stderr;
         }
 
@@ -559,4 +464,4 @@ public class DockerService {
             return exitCode == 0;
         }
     }
-} 
+}
