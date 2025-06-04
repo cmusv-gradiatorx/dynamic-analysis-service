@@ -33,14 +33,7 @@ public class ServiceConfig {
      * Contains Dockerfile, build.gradle, and other Docker-related files.
      */
     @Value("${dynamic.analysis.docker.path:docker}")
-    private String dockerPath;
-
-    /**
-     * Relative path to the directory where submissions are unzipped.
-     * Used for legacy compatibility; new implementations use direct ZIP mounting.
-     */
-    @Value("${dynamic.analysis.unzip.path:docker/unzip_files}")
-    private String unzipPath;
+    private String dockerFilePath;
 
     /**
      * Relative path to the directory where individual submission ZIP files are stored.
@@ -69,25 +62,11 @@ public class ServiceConfig {
      * <p>This directory contains all Docker-related files including Dockerfile,
      * Gradle build scripts, and configuration templates used by containers.</p>
      *
-     * @return Full absolute path to docker directory, never null
+     * @return Full absolute path to Dockerfile directory, never null
      */
-    public String getDockerPath() {
+    public String getDockerFilePath() {
         String currentDir = System.getProperty("user.dir");
-        return Paths.get(currentDir, dockerPath).toString();
-    }
-
-    /**
-     * Get the absolute path to the unzip directory.
-     *
-     * <p>This method is maintained for backward compatibility. In the current
-     * implementation, submissions are processed using direct ZIP mounting
-     * rather than extraction to this directory.</p>
-     *
-     * @return Full absolute path to unzip directory, never null
-     */
-    public String getUnzipPath() {
-        String currentDir = System.getProperty("user.dir");
-        return Paths.get(currentDir, unzipPath).toString();
+        return Paths.get(currentDir, dockerFilePath).toString();
     }
 
     /**
@@ -129,18 +108,18 @@ public class ServiceConfig {
     }
 
     /**
-     * Get the full absolute path to test reports for a submission.
+     * Get the relative path to test reports as it appears inside Docker containers.
      *
-     * <p>This method combines the unzip path with the reports path to provide
-     * the complete location where test reports can be found after analysis.</p>
+     * <p>This path is relative to the container's workspace directory and
+     * typically points to where Gradle generates test reports and coverage data
+     * inside the container environment.</p>
      *
-     * <p><strong>Note:</strong> This method is primarily used for legacy
-     * compatibility. Current implementations may generate reports in different
-     * locations depending on the container's internal structure.</p>
+     * <p>This method returns the same path as {@link #getReportsPath()} but is
+     * named explicitly to indicate its use within Docker containers for clarity.</p>
      *
-     * @return Full absolute path to test reports directory, never null
+     * @return Relative path to test reports directory inside containers, never null
      */
-    public String getFullReportsPath() {
-        return Paths.get(getUnzipPath(), reportsPath).toString();
+    public String getReportsPathInDocker() {
+        return reportsPath;
     }
-} 
+}

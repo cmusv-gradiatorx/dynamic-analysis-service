@@ -8,8 +8,8 @@ import com.github.dockerjava.api.command.WaitContainerResultCallback;
 import com.github.dockerjava.api.model.*;
 import com.github.dockerjava.core.DefaultDockerClientConfig;
 import com.github.dockerjava.core.DockerClientBuilder;
-import com.github.dockerjava.core.command.LogContainerResultCallback;
 import com.github.dockerjava.httpclient5.ApacheDockerHttpClient;
+import com.github.dockerjava.api.async.ResultCallbackTemplate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -28,7 +28,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import com.github.dockerjava.api.model.HostConfig;
-import com.github.dockerjava.api.async.ResultCallbackTemplate;
 
 /**
  * Service for managing Docker operations using the Java Docker client.
@@ -196,11 +195,14 @@ public class DockerService {
      *   <li>Read-only ZIP file mounting for security</li>
      *   <li>Isolated workspace creation within container</li>
      *   <li>Unique submission ID environment variables</li>
-     *   <li>Automatic cleanup of container resources</li>
+     *   <li>Container kept alive for result extraction</li>
      * </ul>
      *
      * <p>This method is the primary entry point for submission processing and
      * ensures complete isolation between concurrent submissions.</p>
+     *
+     * <p><strong>Important:</strong> Callers are responsible for cleaning up the container using
+     * {@link #removeContainer(String)} when they're done with it.</p>
      *
      * @param imageName            The Docker image name to run; must contain analysis tools
      * @param zipFilePath          Absolute path to the submission ZIP file on host;
@@ -209,11 +211,12 @@ public class DockerService {
      *                             used for environment variables and logging
      * @param environmentVariables Additional environment variables to pass to container;
      *                             may be empty but must not be null
-     * @return ContainerExecutionResult containing execution details and output;
-     * never null, success determined by exit code
+     * @return ContainerExecutionResult containing execution result and container ID;
+     * never null, caller must clean up container
      * @throws RuntimeException if ZIP file doesn't exist, container creation fails,
      *                          or volume mounting encounters permission issues
      * @see ContainerExecutionResult
+     * @see #removeContainer(String)
      */
     public ContainerExecutionResult runContainerWithZipFile(String imageName, String zipFilePath, String submissionId, Map<String, String> environmentVariables) {
         try {
@@ -234,7 +237,7 @@ public class DockerService {
             // Create bind mount for the zip file
             String containerZipPath = "/workspace/" + zipFileName;
 
-            // Create container with volume mount
+            // Create container with volume mount using HostConfig (non-deprecated approach)
             CreateContainerResponse container = dockerClient.createContainerCmd(imageName)
                     .withEnv(env)
                     .withAttachStdout(true)
@@ -281,15 +284,36 @@ public class DockerService {
                     .exec(new WaitContainerResultCallback())
                     .awaitStatusCode();
 
-            // Remove container
-            dockerClient.removeContainerCmd(containerId).exec();
             logger.info("🚀 Container completed with exit code: {}", exitCode);
 
-            return new ContainerExecutionResult(exitCode, output.toString(), errors.toString());
+            return new ContainerExecutionResult(containerId, exitCode, output.toString(), errors.toString());
 
         } catch (Exception e) {
             logger.error("❌ Error running container with zip file: {}", e.getMessage(), e);
-            return new ContainerExecutionResult(-1, "", "Error: " + e.getMessage());
+            return new ContainerExecutionResult(null, -1, "", "Error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Remove a Docker container by ID.
+     *
+     * <p>This method forcefully removes a container, whether it's running or stopped.
+     * It's used for cleanup after extracting files from containers.</p>
+     *
+     * @param containerId The ID of the container to remove; must not be null
+     * @return true if the container was successfully removed; false if removal failed
+     */
+    public boolean removeContainer(String containerId) {
+        try {
+            if (containerId != null) {
+                dockerClient.removeContainerCmd(containerId).withForce(true).exec();
+                logger.debug("🗑️ Successfully removed container: {}", containerId);
+                return true;
+            }
+            return false;
+        } catch (Exception e) {
+            logger.warn("Failed to remove container {}: {}", containerId, e.getMessage());
+            return false;
         }
     }
 
@@ -400,12 +424,13 @@ public class DockerService {
      * Represents the result of a Docker container execution.
      *
      * <p>This immutable class encapsulates all information about a container's
-     * execution including the exit code, captured output streams, and provides
-     * convenience methods for determining success or failure.</p>
+     * execution including the container ID, exit code, captured output streams, 
+     * and provides convenience methods for determining success or failure.</p>
      *
      * <p>The class is thread-safe and can be safely shared between threads
      * for result processing and analysis.</p>
      *
+     * @param containerId The ID of the container that executed the code.
      * @param exitCode The exit code returned by the container process.
      * @param stdout   All output captured from the container's stdout stream.
      * @param stderr   All output captured from the container's stderr stream.
@@ -413,16 +438,26 @@ public class DockerService {
      * @version 1.0
      * @since 1.0
      */
-    public record ContainerExecutionResult(int exitCode, String stdout, String stderr) {
+    public record ContainerExecutionResult(String containerId, int exitCode, String stdout, String stderr) {
 
         /**
          * Constructs a new ContainerExecutionResult with the specified values.
          *
+         * @param containerId The ID of the container that executed the code
          * @param exitCode The exit code returned by the container
          * @param stdout   The standard output captured from the container
          * @param stderr   The standard error output captured from the container
          */
         public ContainerExecutionResult {
+        }
+
+        /**
+         * Get the container ID.
+         *
+         * @return The container ID; may be null if container creation failed
+         */
+        public String containerId() {
+            return containerId;
         }
 
         /**

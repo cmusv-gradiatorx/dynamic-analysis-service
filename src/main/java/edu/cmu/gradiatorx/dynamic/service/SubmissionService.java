@@ -102,8 +102,8 @@ public class SubmissionService {
      *   <li>Decode and save ZIP file with unique naming</li>
      *   <li>Build Docker image (cached after first build)</li>
      *   <li>Run analysis container with mounted submission ZIP</li>
-     *   <li>Collect container output and test results</li>
-     *   <li>Publish results to configured PubSub topic</li>
+     *   <li>Extract test results from container's build/reports directory</li>
+     *   <li>Publish extracted test results to configured PubSub topic</li>
      *   <li>Clean up temporary files and resources</li>
      * </ol>
      *
@@ -118,7 +118,7 @@ public class SubmissionService {
      * @throws IllegalArgumentException if the payload structure is invalid
      * @see PubSubPayload
      * @see #runAnalysisContainerWithZip(String, String)
-     * @see #publishContainerResults(String, DockerService.ContainerExecutionResult)
+     * @see #extractAndPublishTestResults(String, String)
      */
     public void processSubmission(PubSubPayload payload) {
         String submissionId = payload.message.attributes.get("submissionId");
@@ -127,66 +127,75 @@ public class SubmissionService {
             throw new RuntimeException("Submission ID is required");
         }
 
+        Path zipFilePath = null;
+        String containerId = null;
+
         try {
             logger.info("Processing submission ID: {}", submissionId);
 
             // Save zip file with submission ID as filename
             byte[] zipBytes = Base64.getDecoder().decode(payload.message.data);
-            Path zipFilePath = saveZipToDisk(zipBytes, submissionId);
+            zipFilePath = saveZipToDisk(zipBytes, submissionId);
             logger.info("✅ Saved ZIP file for message: {}", payload.message.messageId);
 
             // Build Docker image for analysis if not already built
             boolean isBuilt = dockerService.buildDockerImage(
                     serviceConfig.getDefaultImageName(),
-                    serviceConfig.getDockerPath()
+                    serviceConfig.getDockerFilePath()
             );
 
             if (!isBuilt) {
-                cleanupZipFile(zipFilePath);
                 throw new RuntimeException("Unable to build the docker container");
             }
 
-            // Run analysis container with mounted zip file
-            DockerService.ContainerExecutionResult result = runAnalysisContainerWithZip(
+            // Run analysis container with mounted zip file and get container ID for result extraction
+            DockerService.ContainerExecutionResult containerResult = runAnalysisContainerWithZip(
                     submissionId,
                     zipFilePath.toString()
             );
 
-            if (!result.isSuccess()) {
-                logger.error("❌ Container execution failed with exit code: {}", result.exitCode());
-                logger.error("Container stderr: {}", result.stderr());
-                cleanupZipFile(zipFilePath);
-                throw new RuntimeException("Container execution failed");
+            containerId = containerResult.containerId();
+
+            if (!containerResult.isSuccess()) {
+                logger.error("❌ Container execution failed with exit code: {}", containerResult.exitCode());
+                logger.error("Container stderr: {}", containerResult.stderr());
+                throw new RuntimeException("Container execution failed with exit code: " + containerResult.exitCode());
             }
 
-            // Container succeeded, publish the container's output as results
-            // For now, we'll create a simple results file with the container output
-            publishContainerResults(submissionId, result);
+            logger.info("✅ Container execution completed successfully for submission: {}", submissionId);
 
-            // Clean up zip file
-            cleanupZipFile(zipFilePath);
+            // Extract test results from container and publish them
+            extractAndPublishTestResults(submissionId, containerId);
+
         } catch (Exception e) {
             logger.error("❌ Failed to process submission: {}", e.getMessage(), e);
             throw new RuntimeException("Bad Request: " + e.getMessage());
+        } finally {
+            // Clean up resources regardless of success/failure
+            if (containerId != null) {
+                dockerService.removeContainer(containerId);
+            }
+            if (zipFilePath != null) {
+                cleanupZipFile(zipFilePath);
+            }
         }
     }
 
     /**
-     * Run the analysis container with a mounted ZIP file for isolated processing.
+     * Run the analysis container with a mounted ZIP file and return container ID for result extraction.
      *
      * <p>This method executes the core analysis logic by running a Docker container
      * with the submission ZIP file mounted as a volume. The container handles
      * extraction, compilation, and test execution in complete isolation.</p>
      *
-     * <p>The method uses the {@link DockerService#runContainerWithZipFile} method
-     * to ensure proper volume mounting and environment variable setup for the
-     * container execution.</p>
+     * <p>Unlike the basic container execution method, this returns both the execution
+     * result and the container ID, allowing for test result extraction before cleanup.</p>
      *
      * @param submissionId The unique ID of the submission being processed;
      *                     used for container environment variables and logging
      * @param zipFilePath  Absolute path to the submission ZIP file on the host;
      *                     must exist and be readable
-     * @return Container execution result containing exit code, stdout, and stderr;
+     * @return ContainerExecutionResult containing execution result and container ID;
      * never null but may indicate failure through exit code
      * @throws RuntimeException if container creation, execution, or cleanup fails
      * @see DockerService#runContainerWithZipFile(String, String, String, Map)
@@ -205,57 +214,112 @@ public class SubmissionService {
     }
 
     /**
-     * Publish container execution results to the configured PubSub topic.
+     * Extract test results from the completed container and publish them to PubSub.
      *
-     * <p>This method creates a temporary results directory containing the container's
-     * output and publishes it as a ZIP file to the PubSub topic. The results include
-     * the container's exit code, stdout, and stderr for comprehensive analysis.</p>
+     * <p>This method extracts the actual test results from the container's workspace
+     * at the path specified by {@code serviceConfig.getReportsPathInDocker()}. The extracted
+     * results are then packaged and published to the configured PubSub topic.</p>
      *
-     * <p>The method handles temporary file creation and cleanup automatically,
-     * ensuring no residual files are left on the system regardless of success
-     * or failure.</p>
+     * <p>This properly implements the requirement to extract test results from 
+     * {@code <workspaceDir>/build/reports} inside the container, replacing the 
+     * previous approach of publishing stdout/stderr output.</p>
      *
-     * <p><strong>Note:</strong> This implementation creates a simple text file
-     * with container output. Future versions may include more sophisticated
-     * result parsing and structured data generation.</p>
-     *
-     * @param submissionId    The unique submission ID for result correlation;
-     *                        included in PubSub message attributes
-     * @param containerResult The container execution result containing output data;
-     *                        must not be null
-     * @throws RuntimeException if temporary directory creation fails, file writing
-     *                          encounters errors, or PubSub publishing fails
-     * @see PubSubService#zipAndPublishResults(String, String)
-     * @see #cleanupDirectory(Path)
+     * @param submissionId The unique submission ID for result correlation
+     * @param containerId  The ID of the container to extract results from
+     * @throws RuntimeException if result extraction or publishing fails
+     * @see #copyTestResultsFromContainer(String, String)
      */
-    private void publishContainerResults(String submissionId, DockerService.ContainerExecutionResult containerResult) {
+    private void extractAndPublishTestResults(String submissionId, String containerId) {
         try {
-            // Create a temporary results directory
-            String currentDir = System.getProperty("user.dir");
-            Path tempResultsDir = Paths.get(currentDir, "temp-results", submissionId);
-            Files.createDirectories(tempResultsDir);
+            logger.info("Extracting test results from container {} for submission: {}", containerId, submissionId);
 
-            // Create a simple results file with container output
-            Path resultFile = tempResultsDir.resolve("container-output.txt");
-            String resultContent = "=== CONTAINER EXECUTION RESULTS ===\n" +
-                    "Exit Code: " + containerResult.exitCode() + "\n" +
-                    "=== STDOUT ===\n" +
-                    containerResult.stdout() + "\n" +
-                    "=== STDERR ===\n" +
-                    containerResult.stderr() + "\n";
+            // Create temporary directory for extracted results using Java standard API
+            Path tempResultsDir = Files.createTempDirectory("submission-" + submissionId + "-");
+            logger.debug("Created temporary results directory: {}", tempResultsDir);
 
-            Files.write(resultFile, resultContent.getBytes());
+            try {
+                // Extract test results from container
+                boolean extracted = copyTestResultsFromContainer(containerId, tempResultsDir.toString());
 
-            logger.info("Publishing results from: {}", tempResultsDir);
-            pubSubService.zipAndPublishResults(submissionId, tempResultsDir.toString());
+                if (!extracted) {
+                    logger.warn("Failed to extract test results from container, creating fallback results");
+                    // Create a fallback results file if extraction fails
+                    createFallbackResults(tempResultsDir, submissionId);
+                }
 
-            // Clean up temporary results
-            cleanupDirectory(tempResultsDir);
+                // Publish the results
+                logger.info("Publishing test results from: {}", tempResultsDir);
+                pubSubService.zipAndPublishResults(submissionId, tempResultsDir.toString());
+                logger.info("✅ Successfully published test results for submission: {}", submissionId);
+
+            } finally {
+                // Clean up temporary results directory
+                cleanupDirectory(tempResultsDir);
+            }
 
         } catch (Exception e) {
-            logger.error("❌ Failed to publish results for submission {}: {}", submissionId, e.getMessage(), e);
-            throw new RuntimeException("Failed to publish analysis results", e);
+            logger.error("❌ Failed to extract and publish test results for submission {}: {}", submissionId, e.getMessage(), e);
+            throw new RuntimeException("Failed to extract and publish test results", e);
         }
+    }
+
+    /**
+     * Copy test results from the container to the host filesystem.
+     *
+     * <p>This method extracts the test results from the container's 
+     * {@code /workspace/build/reports} directory (or the configured reports path)
+     * and copies them to the specified host directory.</p>
+     *
+     * @param containerId     The ID of the container to extract from
+     * @param hostResultsPath The host directory to copy results to
+     * @return true if extraction was successful; false if it failed
+     */
+    private boolean copyTestResultsFromContainer(String containerId, String hostResultsPath) {
+        try {
+            // Construct the container path to the reports directory
+            String containerReportsPath = "/workspace/" + serviceConfig.getReportsPathInDocker();
+            
+            logger.info("Copying test results from container path: {} to host path: {}", 
+                       containerReportsPath, hostResultsPath);
+
+            // Use the Docker service to copy files from container
+            boolean success = dockerService.copyFromContainer(containerId, containerReportsPath, hostResultsPath);
+
+            if (success) {
+                logger.info("✅ Successfully extracted test results from container");
+            } else {
+                logger.warn("❌ Failed to extract test results from container");
+            }
+
+            return success;
+
+        } catch (Exception e) {
+            logger.error("❌ Error extracting test results from container: {}", e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
+     * Create fallback results when test result extraction fails.
+     *
+     * <p>This method creates a minimal results structure when we cannot extract
+     * the actual test results from the container. This ensures that some results
+     * are always published, even if they're not the detailed test reports.</p>
+     *
+     * @param resultsDir   The directory to create fallback results in
+     * @param submissionId The submission ID for the fallback results
+     * @throws IOException if file creation fails
+     */
+    private void createFallbackResults(Path resultsDir, String submissionId) throws IOException {
+        Path fallbackFile = resultsDir.resolve("extraction-failed.txt");
+        String fallbackContent = "=== TEST RESULT EXTRACTION FAILED ===\n" +
+                "Submission ID: " + submissionId + "\n" +
+                "Timestamp: " + java.time.Instant.now() + "\n" +
+                "Error: Could not extract test results from container\n" +
+                "Note: Container executed, but result extraction failed\n";
+
+        Files.write(fallbackFile, fallbackContent.getBytes());
+        logger.debug("📁 Created fallback results file: {}", fallbackFile);
     }
 
     /**
