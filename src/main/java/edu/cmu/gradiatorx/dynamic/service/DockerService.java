@@ -74,12 +74,12 @@ public class DockerService {
      * Constructs a new DockerService and initializes the Docker client.
      *
      * <p>The constructor configures the Docker client to connect to the local
-     * Docker daemon using Unix socket communication. It sets up connection
-     * pooling, timeouts, and SSL configuration for optimal performance.</p>
+     * Docker daemon using the default Docker client configuration. This automatically
+     * detects the correct Docker host and connection method based on the environment.</p>
      *
      * <p>Connection configuration:</p>
      * <ul>
-     *   <li>Docker host: unix:///var/run/docker.sock</li>
+     *   <li>Auto-detect Docker host (Unix socket on Linux/macOS, named pipe on Windows)</li>
      *   <li>Max connections: 100</li>
      *   <li>Connection timeout: 30 seconds</li>
      *   <li>Response timeout: 45 seconds</li>
@@ -90,24 +90,32 @@ public class DockerService {
      *                          network connectivity problems
      */
     public DockerService() {
-        // Configure Docker client
-        DefaultDockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder()
-                .withDockerHost("unix:///var/run/docker.sock")
-                .build();
+        try {
+            // Use default configuration to auto-detect Docker daemon
+            DefaultDockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder()
+                    .build();
 
-        ApacheDockerHttpClient httpClient = new ApacheDockerHttpClient.Builder()
-                .dockerHost(config.getDockerHost())
-                .sslConfig(config.getSSLConfig())
-                .maxConnections(100)
-                .connectionTimeout(Duration.ofSeconds(30))
-                .responseTimeout(Duration.ofSeconds(45))
-                .build();
+            ApacheDockerHttpClient httpClient = new ApacheDockerHttpClient.Builder()
+                    .dockerHost(config.getDockerHost())
+                    .sslConfig(config.getSSLConfig())
+                    .maxConnections(100)
+                    .connectionTimeout(Duration.ofSeconds(30))
+                    .responseTimeout(Duration.ofSeconds(45))
+                    .build();
 
-        this.dockerClient = DockerClientBuilder.getInstance(config)
-                .withDockerHttpClient(httpClient)
-                .build();
+            this.dockerClient = DockerClientBuilder.getInstance(config)
+                    .withDockerHttpClient(httpClient)
+                    .build();
 
-        logger.info("Docker client initialized successfully");
+            // Test the connection
+            logger.info("Docker client initialized, testing connection...");
+            dockerClient.pingCmd().exec();
+            logger.info("✅ Docker client initialized and connected successfully");
+            
+        } catch (Exception e) {
+            logger.error("❌ Failed to initialize Docker client: {}", e.getMessage());
+            throw new RuntimeException("Docker client initialization failed", e);
+        }
     }
 
     /**
