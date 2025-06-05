@@ -54,7 +54,7 @@ public class ServiceConfig {
      * Typically points to Gradle's build/reports directory.
      */
     @Value("${dynamic.analysis.reports.path:build/reports}")
-    private String reportsPath;
+    private String reportsPathInDocker;
 
     /**
      * Get the absolute path to the Docker configuration directory.
@@ -96,30 +96,18 @@ public class ServiceConfig {
     }
 
     /**
-     * Get the relative path to test reports within a submission directory.
-     *
-     * <p>This path is relative to the submission's working directory and
-     * typically points to where Gradle generates test reports and coverage data.</p>
-     *
-     * @return Relative path to test reports directory, never null
-     */
-    public String getReportsPath() {
-        return reportsPath;
-    }
-
-    /**
      * Get the relative path to test reports as it appears inside Docker containers.
      *
      * <p>This path is relative to the container's workspace directory and
      * typically points to where Gradle generates test reports and coverage data
      * inside the container environment.</p>
      *
-     * <p>This method returns the same path as {@link #getReportsPath()} but is
-     * named explicitly to indicate its use within Docker containers for clarity.</p>
+     * <p>This method returns the standard Gradle reports path used within
+     * Docker containers for test result extraction.</p>
      *
      * @return Relative path to test reports directory inside containers, never null
      */
     public String getReportsPathInDocker() {
-        return reportsPath;
+        return reportsPathInDocker;
     }
 }

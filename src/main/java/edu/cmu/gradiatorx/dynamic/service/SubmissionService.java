@@ -220,8 +220,8 @@ public class SubmissionService {
      * at the path specified by {@code serviceConfig.getReportsPathInDocker()}. The extracted
      * results are then packaged and published to the configured PubSub topic.</p>
      *
-     * <p>This properly implements the requirement to extract test results from 
-     * {@code <workspaceDir>/build/reports} inside the container, replacing the 
+     * <p>This properly implements the requirement to extract test results from
+     * {@code <workspaceDir>/build/reports} inside the container, replacing the
      * previous approach of publishing stdout/stderr output.</p>
      *
      * @param submissionId The unique submission ID for result correlation
@@ -266,7 +266,7 @@ public class SubmissionService {
     /**
      * Copy test results from the container to the host filesystem.
      *
-     * <p>This method extracts the test results from the container's 
+     * <p>This method extracts the test results from the container's
      * {@code /workspace/build/reports} directory (or the configured reports path)
      * and copies them to the specified host directory.</p>
      *
@@ -278,9 +278,9 @@ public class SubmissionService {
         try {
             // Construct the container path to the reports directory
             String containerReportsPath = "/workspace/" + serviceConfig.getReportsPathInDocker();
-            
-            logger.info("Copying test results from container path: {} to host path: {}", 
-                       containerReportsPath, hostResultsPath);
+
+            logger.info("Copying test results from container path: {} to host path: {}",
+                    containerReportsPath, hostResultsPath);
 
             // Use the Docker service to copy files from container
             boolean success = dockerService.copyFromContainer(containerId, containerReportsPath, hostResultsPath);

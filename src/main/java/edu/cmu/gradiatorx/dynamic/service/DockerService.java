@@ -1,6 +1,7 @@
 package edu.cmu.gradiatorx.dynamic.service;
 
 import com.github.dockerjava.api.DockerClient;
+import com.github.dockerjava.api.async.ResultCallbackTemplate;
 import com.github.dockerjava.api.command.BuildImageCmd;
 import com.github.dockerjava.api.command.BuildImageResultCallback;
 import com.github.dockerjava.api.command.CreateContainerResponse;
@@ -9,7 +10,6 @@ import com.github.dockerjava.api.model.*;
 import com.github.dockerjava.core.DefaultDockerClientConfig;
 import com.github.dockerjava.core.DockerClientBuilder;
 import com.github.dockerjava.httpclient5.ApacheDockerHttpClient;
-import com.github.dockerjava.api.async.ResultCallbackTemplate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -26,8 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-
-import com.github.dockerjava.api.model.HostConfig;
 
 /**
  * Service for managing Docker operations using the Java Docker client.
@@ -424,16 +422,16 @@ public class DockerService {
      * Represents the result of a Docker container execution.
      *
      * <p>This immutable class encapsulates all information about a container's
-     * execution including the container ID, exit code, captured output streams, 
+     * execution including the container ID, exit code, captured output streams,
      * and provides convenience methods for determining success or failure.</p>
      *
      * <p>The class is thread-safe and can be safely shared between threads
      * for result processing and analysis.</p>
      *
      * @param containerId The ID of the container that executed the code.
-     * @param exitCode The exit code returned by the container process.
-     * @param stdout   All output captured from the container's stdout stream.
-     * @param stderr   All output captured from the container's stderr stream.
+     * @param exitCode    The exit code returned by the container process.
+     * @param stdout      All output captured from the container's stdout stream.
+     * @param stderr      All output captured from the container's stderr stream.
      * @author Dynamic Analysis Service Team
      * @version 1.0
      * @since 1.0
@@ -444,9 +442,9 @@ public class DockerService {
          * Constructs a new ContainerExecutionResult with the specified values.
          *
          * @param containerId The ID of the container that executed the code
-         * @param exitCode The exit code returned by the container
-         * @param stdout   The standard output captured from the container
-         * @param stderr   The standard error output captured from the container
+         * @param exitCode    The exit code returned by the container
+         * @param stdout      The standard output captured from the container
+         * @param stderr      The standard error output captured from the container
          */
         public ContainerExecutionResult {
         }
